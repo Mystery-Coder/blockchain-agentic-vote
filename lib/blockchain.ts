@@ -41,23 +41,35 @@ function getDeploymentInfo(): DeploymentInfo {
   return JSON.parse(fs.readFileSync(deploymentPath, "utf-8"));
 }
 
+// Singleton instances (persist across hot reloads via globalThis)
+const globalForBlockchain = globalThis as unknown as {
+  bcProvider: ethers.JsonRpcProvider | undefined;
+  bcSigner: ethers.Wallet | undefined;
+};
+
 /**
- * Get a JSON-RPC provider for the local Hardhat network
+ * Get a JSON-RPC provider for the local Hardhat network (singleton)
  */
 export function getProvider(): ethers.JsonRpcProvider {
-  const rpcUrl = process.env.BLOCKCHAIN_RPC_URL || "http://127.0.0.1:8545";
-  return new ethers.JsonRpcProvider(rpcUrl);
+  if (!globalForBlockchain.bcProvider) {
+    const rpcUrl = process.env.BLOCKCHAIN_RPC_URL || "http://127.0.0.1:8545";
+    globalForBlockchain.bcProvider = new ethers.JsonRpcProvider(rpcUrl);
+  }
+  return globalForBlockchain.bcProvider;
 }
 
 /**
- * Get a signer (relayer wallet) that can send transactions
+ * Get a signer (relayer wallet) that can send transactions (singleton)
  */
 export function getRelayerSigner(): ethers.Wallet {
-  const privateKey = process.env.RELAYER_PRIVATE_KEY;
-  if (!privateKey) {
-    throw new Error("RELAYER_PRIVATE_KEY environment variable is not set");
+  if (!globalForBlockchain.bcSigner) {
+    const privateKey = process.env.RELAYER_PRIVATE_KEY;
+    if (!privateKey) {
+      throw new Error("RELAYER_PRIVATE_KEY environment variable is not set");
+    }
+    globalForBlockchain.bcSigner = new ethers.Wallet(privateKey, getProvider());
   }
-  return new ethers.Wallet(privateKey, getProvider());
+  return globalForBlockchain.bcSigner;
 }
 
 /**
