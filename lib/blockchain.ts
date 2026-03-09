@@ -130,9 +130,87 @@ export async function getElectionState(): Promise<number> {
 }
 
 /**
+ * Get candidate IDs
+ */
+export async function getCandidateIds(): Promise<number[]> {
+  const contract = getReadOnlyContract();
+  const ids = await contract.getCandidateIds();
+  return ids.map((id: bigint) => Number(id));
+}
+
+
+/**
  * Get the deployed contract address
  */
 export function getContractAddress(): string {
   const { contractAddress } = getDeploymentInfo();
   return contractAddress;
+}
+
+export interface DecodedTransaction {
+  hash: string;
+  blockNumber: number;
+  from: string;
+  to: string;
+  method: string;
+  args: any[];
+  value: string;
+}
+
+/**
+ * Fetch and decode recent transactions for the ballot contract
+ */
+export async function getRecentTransactions(maxBlocks: number = 50): Promise<DecodedTransaction[]> {
+  const provider = getProvider();
+  const contractAddress = getContractAddress().toLowerCase();
+  const iface = new ethers.Interface(BALLOT_ABI);
+  
+  const latestBlockNumber = await provider.getBlockNumber();
+  const startBlock = Math.max(0, latestBlockNumber - maxBlocks + 1);
+  
+  const decodedTxs: DecodedTransaction[] = [];
+  
+  // Fetch blocks in reverse order
+  for (let i = latestBlockNumber; i >= startBlock; i--) {
+    const block = await provider.getBlock(i, true);
+    if (!block || !block.prefetchedTransactions) continue;
+    
+    for (const tx of block.prefetchedTransactions) {
+      let method = "Unknown Data";
+      let serializedArgs: any[] = [];
+      let isBallotTx = false;
+
+      // Try to decode if it is directed to our contract
+      if (tx.to && tx.to.toLowerCase() === contractAddress) {
+        isBallotTx = true;
+        try {
+          const parsed = iface.parseTransaction({ data: tx.data, value: tx.value });
+          method = parsed ? parsed.name : "Unknown";
+          serializedArgs = parsed ? JSON.parse(
+              JSON.stringify(parsed.args, (key, value) => 
+                typeof value === 'bigint' ? value.toString() : value
+              )
+            ) : [];
+        } catch (e) {
+            // keep default "Unknown Data" and empty args
+        }
+      } else if (tx.to === null) {
+        method = "Contract Deployment";
+      } else if (tx.data === "0x") {
+        method = "Transfer";
+      }
+
+      decodedTxs.push({
+        hash: tx.hash,
+        blockNumber: block.number,
+        from: tx.from,
+        to: tx.to || "Contract Creation",
+        method,
+        args: serializedArgs,
+        value: ethers.formatEther(tx.value)
+      });
+    }
+  }
+  
+  return decodedTxs;
 }

@@ -198,16 +198,10 @@ export default function VotePage() {
             <p className="text-gray-400 mb-8">{voteResult.message}</p>
             <div className="flex gap-4 justify-center">
               <Link
-                href="/results"
+                href="/"
                 className="px-6 py-3 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-500 transition-all"
               >
-                View Results
-              </Link>
-              <Link
-                href="/"
-                className="px-6 py-3 rounded-xl border border-white/20 text-gray-300 hover:bg-white/5 transition-all"
-              >
-                Go Home
+                Return to Homepage
               </Link>
             </div>
           </div>

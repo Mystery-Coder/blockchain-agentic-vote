@@ -205,62 +205,76 @@ export default function ResultsPage() {
           ))}
         </div>
 
+        {/* Results Info if Election is not ended */}
+        {!isLoading && results?.electionState !== 2 && (
+          <div className="text-center py-20 glass rounded-2xl border border-indigo-500/20">
+            <Clock size={64} className="text-indigo-400 mx-auto mb-6 opacity-50" />
+            <h2 className="text-2xl font-bold text-white mb-2">Results are Hidden</h2>
+            <p className="text-gray-400 max-w-md mx-auto">
+              Live results are only available on the Admin Dashboard during an active election. <br/><br/>
+              Check back here once the election has concluded!
+            </p>
+          </div>
+        )}
+
         {/* Results Cards */}
-        <div className="space-y-3">
-          {filteredCandidates
-            .sort((a, b) => b.votes - a.votes)
-            .map((candidate, index) => {
-              const percentage =
-                results && results.totalVotes > 0
-                  ? Math.round((candidate.votes / results.totalVotes) * 100)
-                  : 0;
-              const barWidth =
-                maxVotes > 0 ? (candidate.votes / maxVotes) * 100 : 0;
+        {results?.electionState === 2 && (
+          <div className="space-y-3">
+            {filteredCandidates
+              .sort((a, b) => b.votes - a.votes)
+              .map((candidate, index) => {
+                const percentage =
+                  results && results.totalVotes > 0
+                    ? Math.round((candidate.votes / results.totalVotes) * 100)
+                    : 0;
+                const barWidth =
+                  maxVotes > 0 ? (candidate.votes / maxVotes) * 100 : 0;
 
-              return (
-                <div
-                  key={candidate.id}
-                  className="glass rounded-2xl p-5 group hover:glass-strong transition-all"
-                >
-                  <div className="flex items-center gap-4 mb-3">
-                    {index === 0 && candidate.votes > 0 && (
-                      <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
-                        <Trophy size={16} className="text-amber-400" />
+                return (
+                  <div
+                    key={candidate.id}
+                    className="glass rounded-2xl p-5 group hover:glass-strong transition-all"
+                  >
+                    <div className="flex items-center gap-4 mb-3">
+                      {index === 0 && candidate.votes > 0 && (
+                        <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+                          <Trophy size={16} className="text-amber-400" />
+                        </div>
+                      )}
+                      <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-2xl">
+                        {candidate.symbol}
                       </div>
-                    )}
-                    <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-2xl">
-                      {candidate.symbol}
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-white">
+                          {candidate.name}
+                        </h3>
+                        <p className="text-sm text-indigo-400">
+                          {candidate.party}{" "}
+                          <span className="text-gray-600">
+                            · {candidate.constituency}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-white">
+                          {candidate.votes}
+                        </p>
+                        <p className="text-sm text-gray-400">{percentage}%</p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-white">
-                        {candidate.name}
-                      </h3>
-                      <p className="text-sm text-indigo-400">
-                        {candidate.party}{" "}
-                        <span className="text-gray-600">
-                          · {candidate.constituency}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-white">
-                        {candidate.votes}
-                      </p>
-                      <p className="text-sm text-gray-400">{percentage}%</p>
-                    </div>
-                  </div>
 
-                  {/* Progress Bar */}
-                  <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000 ease-out"
-                      style={{ width: `${barWidth}%` }}
-                    />
+                    {/* Progress Bar */}
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000 ease-out"
+                        style={{ width: `${barWidth}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-        </div>
+                );
+              })}
+          </div>
+        )}
 
         {isLoading && (
           <div className="text-center py-12">

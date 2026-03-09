@@ -9,8 +9,18 @@ import {
   Eye,
   Users,
 } from "lucide-react";
+import { getElectionState } from "@/lib/blockchain";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic"; // Ensure fresh state on every load
+
+export default async function HomePage() {
+  let electionState = 0;
+  try {
+    electionState = await getElectionState();
+  } catch (error) {
+    console.error("Failed to fetch election state for homepage", error);
+  }
+
   return (
     <main className="min-h-screen relative overflow-hidden">
       {/* Background Effects */}
@@ -31,12 +41,14 @@ export default function HomePage() {
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <Link
-            href="/results"
-            className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
-          >
-            Results
-          </Link>
+          {electionState === 2 && (
+            <Link
+              href="/results"
+              className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
+            >
+              Results
+            </Link>
+          )}
           <Link
             href="/auth/login"
             className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 transition-all hover:shadow-lg hover:shadow-indigo-500/20"
@@ -76,12 +88,14 @@ export default function HomePage() {
               className="group-hover:translate-x-1 transition-transform"
             />
           </Link>
-          <Link
-            href="/results"
-            className="flex items-center gap-2 px-8 py-4 rounded-2xl glass text-white font-semibold text-lg hover:bg-white/10 transition-all"
-          >
-            View Results
-          </Link>
+          {electionState === 2 && (
+            <Link
+              href="/results"
+              className="flex items-center gap-2 px-8 py-4 rounded-2xl glass text-white font-semibold text-lg hover:bg-white/10 transition-all"
+            >
+              View Results
+            </Link>
+          )}
         </div>
       </section>
 
