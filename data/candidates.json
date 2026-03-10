@@ -1,0 +1,66 @@
+[
+  {
+    "id": 1,
+    "name": "Ramesh Babu",
+    "party": "National Democratic Front",
+    "symbol": "🌾",
+    "constituency": "constituency-01",
+    "manifesto_summary": "Focuses on agricultural reform, rural infrastructure development, and farmer loan waivers. Promises to increase minimum support prices and build cold storage facilities across the constituency."
+  },
+  {
+    "id": 2,
+    "name": "Lakshmi Devi",
+    "party": "Progressive People's Alliance",
+    "symbol": "🌳",
+    "constituency": "constituency-01",
+    "manifesto_summary": "Emphasizes environmental protection, renewable energy adoption, and sustainable development. Plans to create green jobs and establish solar power cooperatives in every village."
+  },
+  {
+    "id": 3,
+    "name": "Suresh Yadav",
+    "party": "United Workers' Party",
+    "symbol": "⚙️",
+    "constituency": "constituency-01",
+    "manifesto_summary": "Champions workers' rights, minimum wage increases, and industrial safety reforms. Proposes universal healthcare coverage and affordable housing schemes for factory workers."
+  },
+  {
+    "id": 4,
+    "name": "Kavitha Rao",
+    "party": "Digital India Movement",
+    "symbol": "💻",
+    "constituency": "constituency-01",
+    "manifesto_summary": "Advocates for digital literacy programs, high-speed internet access in rural areas, and e-governance initiatives. Plans startup incubation centers and coding bootcamps for youth."
+  },
+  {
+    "id": 5,
+    "name": "Arun Mehta",
+    "party": "National Democratic Front",
+    "symbol": "🌾",
+    "constituency": "constituency-02",
+    "manifesto_summary": "Proposes comprehensive education reform, new school construction, and teacher training programs. Promises free textbooks and mid-day meal expansion."
+  },
+  {
+    "id": 6,
+    "name": "Fatima Sheikh",
+    "party": "Progressive People's Alliance",
+    "symbol": "🌳",
+    "constituency": "constituency-02",
+    "manifesto_summary": "Focuses on women's empowerment, self-help group expansion, and gender-based violence prevention. Plans to establish women's business centers and skill development workshops."
+  },
+  {
+    "id": 7,
+    "name": "Bala Krishnan",
+    "party": "United Workers' Party",
+    "symbol": "⚙️",
+    "constituency": "constituency-02",
+    "manifesto_summary": "Prioritizes healthcare infrastructure, new primary health centers, and ambulance services. Proposes free medical camps and subsidized medicines for elderly citizens."
+  },
+  {
+    "id": 8,
+    "name": "Nandini Das",
+    "party": "Digital India Movement",
+    "symbol": "💻",
+    "constituency": "constituency-02",
+    "manifesto_summary": "Advocates for transparent governance through blockchain-based public records, RTI automation, and citizen feedback portals. Plans digital ID verification for all government services."
+  }
+]

@@ -46,4 +46,4 @@ next-env.d.ts
 /typechain-types
 
 # Data
-data/
+data/deployment.json
