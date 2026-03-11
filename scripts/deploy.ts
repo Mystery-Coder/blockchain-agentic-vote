@@ -1,4 +1,11 @@
-import { ethers } from "hardhat";
+import pkg from 'hardhat';
+const { ethers } = pkg as any;
+
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename); 
 
 async function main() {
   const [deployer] = await ethers.getSigners();

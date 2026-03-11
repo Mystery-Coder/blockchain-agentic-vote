@@ -89,11 +89,22 @@ export function useSpeechRecognition(
         }
       };
 
+      // recognition.onerror = (event: SpeechRecognitionErrorEventCustom) => {
+      //   console.error("Speech recognition error:", event.error);
+      //   onError?.(event.error);
+      //   setIsListening(false);
+      // };
+
       recognition.onerror = (event: SpeechRecognitionErrorEventCustom) => {
-        console.error("Speech recognition error:", event.error);
-        onError?.(event.error);
-        setIsListening(false);
-      };
+  if (event.error === "no-speech") {
+    console.log("No speech detected");
+  } else {
+    console.error("Speech recognition error:", event.error);
+    onError?.(event.error);
+  }
+
+  setIsListening(false);
+};
 
       recognition.onend = () => {
         setIsListening(false);
@@ -107,13 +118,47 @@ export function useSpeechRecognition(
     };
   }, [lang, continuous, interimResults, onResult, onError]);
 
-  const startListening = useCallback(() => {
-    if (recognitionRef.current && !isListening) {
-      setTranscript("");
-      recognitionRef.current.start();
-      setIsListening(true);
-    }
-  }, [isListening]);
+  // const startListening = useCallback(() => {
+  //   if (recognitionRef.current && !isListening) {
+  //     setTranscript("");
+  //     recognitionRef.current.start();
+  //     setIsListening(true);
+  //   }
+  // }, [isListening]);
+
+//   const startListening = useCallback(() => {
+//   const recognition = recognitionRef.current;
+
+//   if (!recognition) return;
+
+//   // Prevent double start
+//   if (isListening) return;
+
+//   try {
+//     setTranscript("");
+//     recognition.start();
+//     setIsListening(true);
+//   } catch (err) {
+//     console.warn("SpeechRecognition already running");
+//   }
+// }, [isListening]);
+
+    const startListening = useCallback(() => {
+  const recognition = recognitionRef.current;
+
+  if (!recognition) return;
+
+  // Prevent starting mic while already listening
+  if (isListening) return;
+
+  try {
+    setTranscript("");
+    recognition.start();
+    setIsListening(true);
+  } catch (err) {
+    console.warn("SpeechRecognition already running");
+  }
+}, [isListening]);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListening) {

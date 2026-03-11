@@ -6,6 +6,9 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Mic, MicOff, Volume2, VolumeX, Send, Square } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+
 
 interface VoiceAgentProps {
   constituency: string;
@@ -33,6 +36,7 @@ export function VoiceAgent({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
   const initSent = useRef(false);
+  const router = useRouter();
 
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/agent/vote" }),
@@ -49,9 +53,14 @@ export function VoiceAgent({
   useEffect(() => {
     if (!initSent.current) {
       initSent.current = true;
+      // sendMessage({
+      //   text: `My constituency is ${constituency}. Please welcome me and read the ballot.`,
+      // });
       sendMessage({
-        text: `My constituency is ${constituency}. Please welcome me and read the ballot.`,
-      });
+  text: `The voter is from constituency ${constituency}. 
+  Welcome the voter and read the ballot candidates clearly.
+  Ask them to say the candidate name or number to vote.`,
+});
     }
   }, [constituency, sendMessage]);
 
@@ -86,25 +95,50 @@ export function VoiceAgent({
   }, [messages]);
 
   // Speak new assistant messages
-  useEffect(() => {
-    if (!voiceEnabled) return;
-    if (messages.length > prevMessagesLengthRef.current) {
-      const lastMessage = messages[messages.length - 1];
-      const text = getMessageText(lastMessage);
-      if (lastMessage.role === "assistant" && text) {
-        speak(text);
+  // useEffect(() => {
+  //   if (!voiceEnabled) return;
+  //   if (messages.length > prevMessagesLengthRef.current) {
+  //     const lastMessage = messages[messages.length - 1];
+  //     const text = getMessageText(lastMessage);
+  //     if (lastMessage.role === "assistant" && text) {
+  //       speak(text);
 
         // Check if vote was submitted
-        if (
-          text.includes("securely submitted") ||
-          text.includes("Thank you for voting")
-        ) {
-          onVoteSubmitted?.();
-        }
-      }
-    }
-    prevMessagesLengthRef.current = messages.length;
-  }, [messages, voiceEnabled, speak, onVoteSubmitted]);
+      //   if (
+      //     text.includes("securely submitted") ||
+      //     text.includes("Thank you for voting")
+      //   ) {
+      //     onVoteSubmitted?.();
+      //   }
+      // }
+    // }
+  //   prevMessagesLengthRef.current = messages.length;
+  // }, [messages, voiceEnabled, speak, onVoteSubmitted]);
+
+  useEffect(() => {
+  if (!voiceEnabled || messages.length === 0) return;
+
+  const lastMessage = messages[messages.length - 1];
+  if (!lastMessage) return;
+
+  const text = getMessageText(lastMessage);
+
+  if (lastMessage.role === "assistant" && text) {
+    speak(text);
+
+  }
+  prevMessagesLengthRef.current = messages.length;
+
+}, [messages, voiceEnabled, speak]);
+
+  useEffect(() => {
+  if (!voiceEnabled) return;
+
+  if (!isSpeaking && !isListening) {
+    startListening();
+  }
+
+}, [isSpeaking]);
 
   const handleTextSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,7 +176,7 @@ export function VoiceAgent({
             } ${largeTargets ? "min-w-[48px] min-h-[48px]" : ""}`}
             aria-label={voiceEnabled ? "Disable voice" : "Enable voice"}
           >
-            {voiceEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+            {voiceEnabled ? <Volume2 size={50} /> : <VolumeX size={50} />}
           </button>
         </div>
       </div>
@@ -199,9 +233,15 @@ export function VoiceAgent({
         {speechRecognitionSupported && (
           <div className="flex justify-center mb-3">
             <button
-              onMouseDown={startListening}
+              // onMouseDown={startListening}
+              onMouseDown={() => {
+  if (!isListening ) startListening();
+}}
               onMouseUp={stopListening}
-              onTouchStart={startListening}
+              // onTouchStart={startListening}
+              onTouchStart={() => {
+  if (!isListening ) startListening();
+}}
               onTouchEnd={stopListening}
               className={`flex items-center gap-2 px-6 py-3 rounded-full font-medium transition-all ${
                 isListening
@@ -222,6 +262,11 @@ export function VoiceAgent({
                 </>
               )}
             </button>
+            {isListening && (
+  <div className="text-green-400 text-sm mt-2">
+    🎤 Listening...
+  </div>
+)}
 
             {isSpeaking && (
               <button

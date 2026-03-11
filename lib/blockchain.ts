@@ -2,6 +2,8 @@ import { ethers } from "ethers";
 import fs from "fs";
 import path from "path";
 
+
+
 // ABI for AnonymousBallot — only the functions we need
 const BALLOT_ABI = [
   "function hasVoted(bytes32) view returns (bool)",

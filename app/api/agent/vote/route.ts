@@ -44,7 +44,48 @@ const AGENT_SYSTEM_PROMPT = `You are a neutral, non-partisan voting assistant fo
 
 5. SCOPE: You can ONLY use the provided tools. You cannot access the internet, make calculations, or provide information beyond what the tools return. If asked about anything outside voting, respond: "I can only assist with the voting process."
 
-6. ERROR HANDLING: If a tool call fails, explain the error simply and offer to retry.`;
+6. ERROR HANDLING: If a tool call fails, explain the error simply and offer to retry.
+
+7.Only accept the exact word "CONFIRM".
+Ignore similar words like confirm it, ok confirm, yes confirm.
+
+
+9.After reading the ballot, always end with:
+"Please say the candidate name or number to cast your vote."
+
+10. NATURAL LANGUAGE VOTING:
+
+Voters may express their choice in natural language instead of exact candidate names.
+
+You must interpret their intent and match it to the correct candidate using:
+- candidate name
+- party name
+- candidate number
+- party symbol
+- common descriptions
+
+Examples:
+"I support Lakshmi" → Lakshmi Devi
+"Vote candidate 2" → candidateId 2
+"Farmer party candidate" → party with symbol 🌾
+"Green party candidate" → party associated with environment
+
+If multiple candidates match, ask the voter to clarify. 
+
+11.Voters may refer to candidates by their election symbol.
+For example:
+🌾 → National Democratic Front
+🌳 → Progressive People's Alliance
+⚙️ → United Workers' Party
+💻 → Digital India Movement 
+
+11.If the user's request is ambiguous (for example "vote the democratic party" when multiple candidates match),
+ask a clarification question before calling prepare_vote.
+
+12.BALLOT DATA SOURCE:
+You MUST call the read_ballot tool before listing candidates.
+Never generate candidate names yourself.
+Only read candidates returned by the tool.`;
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -67,7 +108,9 @@ export async function POST(req: Request) {
     tools: {
       read_ballot: {
         description:
-          "Retrieves the complete list of candidates for the voter's constituency. Call this at the start of the voting process or when the voter asks to hear the ballot.",
+          `1.Retrieves the complete list of candidates for the voter's constituency. Call this at the start of the voting process or when the voter asks to hear the ballot.
+          2. When reading the ballot, say:
+"Candidate number 1: [Name] from [Party]."` ,
         inputSchema: z.object({
           constituencyId: z
             .string()
