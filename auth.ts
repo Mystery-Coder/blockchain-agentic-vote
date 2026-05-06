@@ -36,10 +36,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         aadhaar: { label: "Aadhaar Number", type: "text" },
         otp: { label: "OTP", type: "text" },
+        rfidHash: { label: "RFID Hash",     type: "text" },
       },
       async authorize(credentials) {
         const aadhaar = credentials?.aadhaar as string;
         const otp = credentials?.otp as string;
+        const rfidHash = credentials?.rfidHash as string;
+
+        if (rfidHash) {
+          if (!/^[0-9a-f]{64}$/.test(rfidHash)) {
+            throw new Error("Invalid RFID token.")
+          }
+          const voter = lookupVoter(rfidHash)
+          if (!voter) {
+            throw new Error("Card not registered. Please sign up first.")
+          }
+          return {
+            id: rfidHash,
+            name: voter.name,
+            email: voter.constituency,
+            image: voter.pwd_category || null,
+          }
+        }
 
         // Validate format
         if (!aadhaar || !validateAadhaarFormat(aadhaar)) {
