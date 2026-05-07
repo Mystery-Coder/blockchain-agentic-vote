@@ -22,6 +22,7 @@ export default function RFIDWriter({ voterHash, voterName, onSuccess }: RFIDWrit
 
   const handleConnect = async () => {
     await connect()
+    handleWrite()
   }
 
   const handleWrite = async () => {
@@ -109,7 +110,7 @@ export default function RFIDWriter({ voterHash, voterName, onSuccess }: RFIDWrit
                        flex items-center justify-center gap-2"
           >
             <Usb size={16} />
-            Connect RFID Reader
+            {status === "error" ? "Retry Write" : "Connect RFID Reader"}
           </button>
         ) : !written ? (
           <button
@@ -134,6 +135,18 @@ export default function RFIDWriter({ voterHash, voterName, onSuccess }: RFIDWrit
             <CheckCircle size={16} />
             Card enrolled successfully
           </div>
+        )}
+
+        {status === "error" && isConnected && !written && (
+        <button
+            onClick={handleWrite}
+            className="w-full py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500
+                    text-white font-semibold transition-colors duration-200
+                    flex items-center justify-center gap-2"
+        >
+            <CreditCard size={16} />
+            Retry — Tap Card Again
+        </button>
         )}
 
         {isConnected && !written && (

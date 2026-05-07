@@ -72,8 +72,8 @@ export async function POST(req: NextRequest) {
     // ── Hash Aadhaar + save ───────────────────────────────────
 
     const voterHash = hashAadhaar(aadhaar).replace(/^0x/, "");
-    voters[index].voterHash = voterHash;
-    writeVoters(voters);
+    // voters[index].voterHash = voterHash;
+    // writeVoters(voters);
 
     // Return hash to browser so it can write to RFID card
     // Raw Aadhaar never leaves server after this point

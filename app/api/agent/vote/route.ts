@@ -186,7 +186,9 @@ export async function POST(req: Request) {
           }
 
           try {
-            const alreadyVoted = await hasVoterVotedOnChain(voterHash);
+            const alreadyVoted = await hasVoterVotedOnChain(
+  voterHash.startsWith("0x") ? voterHash : `0x${voterHash}`
+);
             if (alreadyVoted) {
               return {
                 staged: false,
@@ -227,7 +229,9 @@ export async function POST(req: Request) {
         }),
         execute: async ({ candidateId }: { candidateId: number; voterConfirmation: "CONFIRMED" }) => {
           try {
-            const alreadyVoted = await hasVoterVotedOnChain(voterHash);
+            const alreadyVoted = await hasVoterVotedOnChain(
+  voterHash.startsWith("0x") ? voterHash : `0x${voterHash}`
+);
             if (alreadyVoted) {
               return {
                 success: false,

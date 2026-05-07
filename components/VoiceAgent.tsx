@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Mic, MicOff, Volume2, VolumeX, Send, Square, CreditCard, CheckCircle, AlertCircle } from "lucide-react";
 import RFIDReader from "@/components/RFIDReader";
 import { useRFID } from "@/hooks/useRFID"
+import { Usb } from "lucide-react"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -51,8 +52,9 @@ export function VoiceAgent({
   const messagesEndRef        = useRef<HTMLDivElement>(null)
   const prevMessagesLengthRef = useRef(0)
   const initSent              = useRef(false)
+  
 
-  const { readTag, isConnected } = useRFID()
+  const { readTag, isConnected, connect, status: rfidStatus } = useRFID()
 
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/agent/vote" }),
@@ -146,6 +148,7 @@ Ask them to say the candidate name or number to vote.`,
 useEffect(() => {
   if (phase !== "rfid") return
   if (rfidVerified) return
+  if (!isConnected) return
 
   const autoRead = async () => {
     const hash = await readTag()
@@ -153,7 +156,7 @@ useEffect(() => {
   }
 
   autoRead()
-}, [phase]) // only runs once when phase is "rfid"
+}, [phase, isConnected]) // only runs once when phase is "rfid"
 
   // ── RFID hash verified ────────────────────────────────────
 
@@ -272,19 +275,30 @@ useEffect(() => {
           </div>
 
           {/* WITH this: */}
-		{!rfidVerified && (
-		<div className="flex flex-col items-center gap-3">
-			{isConnected ? (
-			<p className="text-sm text-indigo-400 animate-pulse">
-				Tap your card on the reader...
-			</p>
-			) : (
-			<p className="text-sm text-red-400">
-				Reader not connected. Please refresh and login again.
-			</p>
-			)}
-		</div>
-		)}
+	      
+{!rfidVerified && (
+  <div className="flex flex-col items-center gap-4 w-full max-w-sm">
+    {!isConnected ? (
+      // Not connected — show connect button
+      <button
+        onClick={async () => {
+          await connect()
+        }}
+        className="w-full py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500
+                   text-white font-semibold transition-colors duration-200
+                   flex items-center justify-center gap-2"
+      >
+        <Usb size={16} />
+        Connect RFID Reader
+      </button>
+    ) : (
+      // Connected — show tap prompt
+      <p className="text-sm text-indigo-400 animate-pulse text-center">
+        Tap your card on the reader...
+      </p>
+    )}
+  </div>
+)}
 
           {/* Verified animation */}
           {rfidVerified && (

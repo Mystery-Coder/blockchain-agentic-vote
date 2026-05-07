@@ -87,6 +87,27 @@ export async function signupAction(
   }
 }
 
+export async function confirmEnrollmentAction(
+  aadhaar: string,
+  voterHash: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(
+      `${process.env.NEXTAUTH_URL}/api/auth/signup/confirm`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aadhaar, voterHash }),
+      }
+    )
+    const data = await res.json()
+    if (!res.ok) return { success: false, error: data.error }
+    return { success: true }
+  } catch {
+    return { success: false, error: "Network error." }
+  }
+}
+
 export async function logoutAction() {
   await signOut({ redirect: false });
 }

@@ -27,7 +27,7 @@ export default function AgenticVotePage() {
     }
   }, [status, router]);
 
-  if (status === "loading") {
+  if (status === "loading" || !session) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -99,8 +99,9 @@ export default function AgenticVotePage() {
         <button
           onClick={async () => {
             await logoutAction();
-            router.push("/");
-            router.refresh();
+            // router.push("/");
+            // router.refresh();
+            window.location.href = "/"
           }}
           className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-all"
           aria-label="Logout"

@@ -9,7 +9,8 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import RFIDWriter from "@/components/RFIDWriter"
-import { signupAction } from "@/actions/auth"
+import { signupAction, confirmEnrollmentAction } from "@/actions/auth"
+
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -37,15 +38,40 @@ export default function SignupPage() {
     return digits.replace(/(\d{4})(?=\d)/g, "$1 ")
   }
 
-  const handleAadhaarSubmit = () => {
-    const digits = aadhaar.replace(/\s/g, "")
-    if (!/^\d{12}$/.test(digits)) {
-      setError("Please enter a valid 12-digit Aadhaar number.")
+  const handleAadhaarSubmit = async () => {
+  const digits = aadhaar.replace(/\s/g, "")
+  if (!/^\d{12}$/.test(digits)) {
+    setError("Please enter a valid 12-digit Aadhaar number.")
+    return
+  }
+
+  setIsLoading(true)
+  setError("")
+
+  try {
+    const res = await fetch("/api/auth/check-aadhaar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ aadhaar: digits }),
+    })
+    const data = await res.json()
+
+    if (!res.ok) {
+      setError(data.error)
+      setIsLoading(false)
       return
     }
+
+    // Valid — proceed to OTP
+    setIsLoading(false)
     setError("")
     setStep("otp")
+
+  } catch {
+    setError("Network error. Please try again.")
+    setIsLoading(false)
   }
+}
 
   // ── Step 2: OTP → call signup API ────────────────────────
 
@@ -74,10 +100,19 @@ export default function SignupPage() {
 
   // ── Step 3: RFID written → done ──────────────────────────
 
-  const handleRFIDSuccess = () => {
-    setStep("done")
-    setTimeout(() => router.push("/auth/login"), 2000)
+  const handleRFIDSuccess = async () => {
+  // Card written successfully — NOW save hash to voters.json
+  const result = await confirmEnrollmentAction(
+    aadhaar.replace(/\s/g, ""),
+    voterHash
+  )
+  if (!result.success) {
+    setError(result.error ?? "Failed to confirm enrollment.")
+    return
   }
+  setStep("done")
+  setTimeout(() => router.push("/auth/login"), 2000)
+}
 
   // ── Progress indicator ────────────────────────────────────
 

@@ -85,8 +85,8 @@ export default function LoginPage() {
     try {
       const result = await rfidLoginAction(hash)
       if (result.success) {
-        router.push("/vote")
-        router.refresh()
+        window.location.href = "/vote"
+        // router.refresh()
       } else {
         setError(result.error ?? "RFID login failed.")
         setIsLoading(false)

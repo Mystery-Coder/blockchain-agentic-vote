@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect  } from "react"
 import { useRFID } from "@/hooks/useRFID"
+
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -39,6 +40,13 @@ export default function RFIDReader({ onHashRead, autoRead = false }: RFIDReaderP
   // ── Derived UI state ──────────────────────────────────────
 
   const isReading = status === "reading"
+
+  useEffect(() => {
+  if (isConnected) {
+    const timer = setTimeout(() => handleRead(), 500)
+    return () => clearTimeout(timer)
+  }
+}, [isConnected])// if port already open on mount, auto-read
 
   // ── Render ────────────────────────────────────────────────
 

@@ -38,7 +38,7 @@ export async function submitVote(candidateId: number): Promise<VoteResult> {
 
   // 3. Check on-chain if already voted
   try {
-    const alreadyVoted = await hasVoterVotedOnChain(voterHash);
+    const alreadyVoted = await hasVoterVotedOnChain(voterHash.startsWith("0x") ? voterHash : `0x${voterHash}`);
     if (alreadyVoted) {
       return {
         success: false,

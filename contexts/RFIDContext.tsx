@@ -66,6 +66,12 @@ export function RFIDProvider({ children }: { children: ReactNode }) {
       setError(null)
       const port = await navigator.serial.requestPort()
       await port.open({ baudRate: 115200 })
+      // ADD inside connect(), after port.open():
+        port.addEventListener("disconnect", () => {
+        _disconnect()
+        setStatus("disconnected")
+        setError("Reader disconnected. Please reconnect.")
+        })
 
       portRef.current   = port
       readerRef.current = port.readable!.getReader()

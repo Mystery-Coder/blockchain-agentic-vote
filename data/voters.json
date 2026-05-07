@@ -1,6 +1,6 @@
 [
   {
-    "voterHash": "",
+    "voterHash": "34d05cb95875bce69c11bd666de7730273c2ad2956866819cfd0c538a8c34986",
     "aadhaar": "111111111111",
     "name": "Arjun Sharma",
     "constituency": "constituency-01",
@@ -52,7 +52,7 @@
     "is_verified_pwd": false
   },
   {
-    "voterHash": "0xaa0ca703c8fe409db0b1c19b185b2c373e9a7a722a48a25382defe1b3a77ec75",
+    "voterHash": "aa0ca703c8fe409db0b1c19b185b2c373e9a7a722a48a25382defe1b3a77ec75",
     "aadhaar": "888888888888",
     "name": "Deepa Iyer",
     "constituency": "constituency-02",
@@ -67,7 +67,7 @@
     "is_verified_pwd": false
   },
   {
-    "voterHash": "",
+    "voterHash": "731f5c8ac392193d8d13f1d4edb49f64e03bda721f890440264c874ca2bc1a2f",
     "aadhaar": "100000000001",
     "name": "Meera Joshi",
     "constituency": "constituency-02",
