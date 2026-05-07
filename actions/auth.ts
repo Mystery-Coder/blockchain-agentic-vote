@@ -49,6 +49,44 @@ export async function rfidLoginAction(
   }
 }
 
+export async function signupAction(
+  aadhaar: string,
+  otp: string
+): Promise<{
+  success: boolean
+  voterHash?: string
+  name?: string
+  constituency?: string
+  error?: string
+}> {
+  try {
+    const res = await fetch(
+      `${process.env.NEXTAUTH_URL}/api/auth/signup`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aadhaar, otp }),
+      }
+    )
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      return { success: false, error: data.error }
+    }
+
+    return {
+      success: true,
+      voterHash:    data.voterHash,
+      name:         data.name,
+      constituency: data.constituency,
+    }
+
+  } catch {
+    return { success: false, error: "Network error. Please try again." }
+  }
+}
+
 export async function logoutAction() {
   await signOut({ redirect: false });
 }

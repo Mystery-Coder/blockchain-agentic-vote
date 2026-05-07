@@ -37,7 +37,7 @@
     "is_verified_pwd": false
   },
   {
-    "voterHash": "",
+    "voterHash": "744a15232ea7b28d96b163ee822744a890aebf1414b9dbd076a7b8a08afb00c6",
     "aadhaar": "666666666666",
     "name": "Ananya Gupta",
     "constituency": "constituency-02",
@@ -45,14 +45,14 @@
     "pwd_category": "locomotor"
   },
   {
-    "voterHash": "",
+    "voterHash": "3435e099d57f794bdc48867d19b2d744003f793ffea4afdc29e0f54efa07e608",
     "aadhaar": "777777777777",
     "name": "Karthik Nair",
     "constituency": "constituency-02",
     "is_verified_pwd": false
   },
   {
-    "voterHash": "",
+    "voterHash": "0xaa0ca703c8fe409db0b1c19b185b2c373e9a7a722a48a25382defe1b3a77ec75",
     "aadhaar": "888888888888",
     "name": "Deepa Iyer",
     "constituency": "constituency-02",
@@ -60,7 +60,7 @@
     "pwd_category": "cognitive"
   },
   {
-    "voterHash": "",
+    "voterHash": "0x81c41d9e55637399fe0ea129a8cb6ac850b0f3550f816cfff0eba6db0411795f",
     "aadhaar": "999999999999",
     "name": "Ravi Verma",
     "constituency": "constituency-02",

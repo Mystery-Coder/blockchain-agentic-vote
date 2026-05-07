@@ -21,7 +21,7 @@ function lookupVoter(voterHash: string): VoterRecord | undefined {
 
   // Compute hashes for all voters and find match
   for (const voter of voters) {
-    const computed = hashAadhaar(voter.aadhaar);
+    const computed = hashAadhaar(voter.aadhaar).replace(/^0x/, "");
     if (computed === voterHash) {
       return { ...voter, voterHash: computed };
     }

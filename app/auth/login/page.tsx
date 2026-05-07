@@ -311,6 +311,12 @@ export default function LoginPage() {
               <p className="text-red-400 text-sm">{error}</p>
             </div>
           )}
+          <p className="text-center text-sm text-gray-500 mt-4">
+  First time?{" "}
+  <Link href="/auth/signup" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+    Enroll your RFID card
+  </Link>
+</p>
 
           {/* Security footer */}
           <div className="mt-8 pt-6 border-t border-white/10">
@@ -324,6 +330,7 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
+        
 
         {/* Demo info */}
         <div className="mt-6 p-4 rounded-2xl glass text-center">
@@ -347,6 +354,7 @@ export default function LoginPage() {
             OTP: <code className="text-indigo-400">123456</code> · PWD accounts: 2222*, 4444*, 6666*, 8888*
           </p>
         </div>
+        
 
       </div>
     </main>
