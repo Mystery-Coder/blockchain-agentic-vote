@@ -114,6 +114,7 @@ export default function AgenticVotePage() {
         <VoiceAgent
           constituency={session.user.constituency}
           voterHash={session.user.voterHash}
+          voterName={session.user.voterName}
           pwdCategory={session.user.pwdCategory}
           onVoteSubmitted={() => setVoteSubmitted(true)}
         />
