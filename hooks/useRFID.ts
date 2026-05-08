@@ -1,222 +1,261 @@
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react";
 
 // ── Types ────────────────────────────────────────────────────
 
-type RFIDStatus = "disconnected" | "connected" | "reading" | "writing" | "error"
+type RFIDStatus =
+	| "disconnected"
+	| "connected"
+	| "reading"
+	| "writing"
+	| "error";
 
 interface RFIDResponse {
-  status: "OK" | "WAITING" | "ERROR" | "READY"
-  data?: string
-  msg?: string
+	status: "OK" | "WAITING" | "ERROR" | "READY";
+	data?: string;
+	msg?: string;
 }
 
 interface UseRFIDReturn {
-  status: RFIDStatus
-  error: string | null
-  connect: () => Promise<void>
-  disconnect: () => Promise<void>
-  readTag: () => Promise<string | null>
-  writeTag: (hexHash: string) => Promise<boolean>
-  isConnected: boolean
+	status: RFIDStatus;
+	error: string | null;
+	connect: () => Promise<void>;
+	disconnect: () => Promise<void>;
+	readTag: () => Promise<string | null>;
+	writeTag: (hexHash: string) => Promise<boolean>;
+	isConnected: boolean;
 }
 
 // ── Hook ─────────────────────────────────────────────────────
 
 export function useRFID(): UseRFIDReturn {
-  const [status, setStatus] = useState<RFIDStatus>("disconnected")
-  const [error, setError]   = useState<string | null>(null)
+	const [status, setStatus] = useState<RFIDStatus>("disconnected");
+	const [error, setError] = useState<string | null>(null);
 
-  const portRef    = useRef<SerialPort | null>(null)
-  const readerRef  = useRef<ReadableStreamDefaultReader | null>(null)
-  const writerRef  = useRef<WritableStreamDefaultWriter | null>(null)
-  const bufferRef  = useRef<string>("")  // incomplete line buffer
+	const portRef = useRef<SerialPort | null>(null);
+	const readerRef = useRef<ReadableStreamDefaultReader | null>(null);
+	const writerRef = useRef<WritableStreamDefaultWriter | null>(null);
+	const bufferRef = useRef<string>(""); // incomplete line buffer
 
-  // ── Connect ───────────────────────────────────────────────
+	// ── Disconnect ────────────────────────────────────────────
 
-  const connect = useCallback(async () => {
-    try {
-      setError(null)
+	const disconnect = useCallback(async () => {
+		try {
+			await readerRef.current?.cancel();
+			readerRef.current?.releaseLock();
+			await writerRef.current?.close();
+			writerRef.current?.releaseLock();
+			await portRef.current?.close();
+		} catch (_) {}
+		portRef.current = null;
+		readerRef.current = null;
+		writerRef.current = null;
+		bufferRef.current = "";
+		setStatus("disconnected");
+	}, []);
 
-      // Ask user to pick the serial port (ESP32)
-      const port = await navigator.serial.requestPort()
-      await port.open({ baudRate: 115200 })
+	// ── Low-level: read one newline-terminated JSON line ──────
 
-      portRef.current   = port
-      readerRef.current = port.readable!.getReader()
-      writerRef.current = port.writable!.getWriter()
+	const readLineFromSerial =
+		useCallback(async (): Promise<RFIDResponse | null> => {
+			const reader = readerRef.current;
+			if (!reader) return null;
 
-      setStatus("connected")
+			const decoder = new TextDecoder();
 
-      // Drain the READY message from ESP32 on connect
-      await readLineFromSerial()
+			// Keep reading chunks until we have a complete line
+			while (true) {
+				const { value, done } = await reader.read();
+				if (done) return null;
 
-    } catch (err: any) {
-      setError(err.message ?? "Failed to connect")
-      setStatus("error")
-    }
-  }, [])
+				bufferRef.current += decoder.decode(value, { stream: true });
 
-  // ── Disconnect ────────────────────────────────────────────
+				const newlineIndex = bufferRef.current.indexOf("\n");
+				if (newlineIndex !== -1) {
+					const line = bufferRef.current
+						.slice(0, newlineIndex)
+						.trim();
+					bufferRef.current = bufferRef.current.slice(
+						newlineIndex + 1,
+					);
 
-  const disconnect = useCallback(async () => {
-    try {
-      readerRef.current?.cancel()
-      writerRef.current?.close()
-      await portRef.current?.close()
-    } catch (_) {}
-    portRef.current   = null
-    readerRef.current = null
-    writerRef.current = null
-    bufferRef.current = ""
-    setStatus("disconnected")
-  }, [])
+					try {
+						return JSON.parse(line) as RFIDResponse;
+					} catch {
+						// Malformed line — skip and keep reading
+						continue;
+					}
+				}
+			}
+		}, []);
 
-  // ── Low-level: read one newline-terminated JSON line ──────
+	// ── Connect ───────────────────────────────────────────────
 
-  const readLineFromSerial = useCallback(async (): Promise<RFIDResponse | null> => {
-    const reader = readerRef.current
-    if (!reader) return null
+	const connect = useCallback(async () => {
+		try {
+			setError(null);
 
-    const decoder = new TextDecoder()
+			if (portRef.current) {
+				// Avoid re-opening an active port. Treat as already connected.
+				if (portRef.current.readable && portRef.current.writable) {
+					setStatus("connected");
+					return;
+				}
+				// Clean up stale refs before re-requesting.
+				await disconnect();
+			}
 
-    // Keep reading chunks until we have a complete line
-    while (true) {
-      const { value, done } = await reader.read()
-      if (done) return null
+			// Ask user to pick the serial port (ESP32)
+			const port = await navigator.serial.requestPort();
 
-      bufferRef.current += decoder.decode(value, { stream: true })
+			if (port.readable && port.writable) {
+				// Port is already open; just attach to it.
+				portRef.current = port;
+				readerRef.current = port.readable.getReader();
+				writerRef.current = port.writable.getWriter();
+				setStatus("connected");
+				await readLineFromSerial();
+				return;
+			}
 
-      const newlineIndex = bufferRef.current.indexOf("\n")
-      if (newlineIndex !== -1) {
-        const line = bufferRef.current.slice(0, newlineIndex).trim()
-        bufferRef.current = bufferRef.current.slice(newlineIndex + 1)
+			await port.open({ baudRate: 115200 });
 
-        try {
-          return JSON.parse(line) as RFIDResponse
-        } catch {
-          // Malformed line — skip and keep reading
-          continue
-        }
-      }
-    }
-  }, [])
+			portRef.current = port;
+			readerRef.current = port.readable!.getReader();
+			writerRef.current = port.writable!.getWriter();
 
-  // ── Low-level: send a command to ESP32 ───────────────────
+			setStatus("connected");
 
-  const sendCommand = useCallback(async (payload: object) => {
-    const writer = writerRef.current
-    if (!writer) throw new Error("Not connected")
+			// Drain the READY message from ESP32 on connect
+			await readLineFromSerial();
+		} catch (err: any) {
+			setError(err.message ?? "Failed to connect");
+			setStatus("error");
+		}
+	}, [disconnect, readLineFromSerial]);
 
-    const encoder = new TextEncoder()
-    const line    = JSON.stringify(payload) + "\n"
-    await writer.write(encoder.encode(line))
-  }, [])
+	useEffect(() => {
+		return () => {
+			void disconnect();
+		};
+	}, [disconnect]);
 
-  // ── Read tag (polls until card found or timeout) ──────────
+	// ── Low-level: send a command to ESP32 ───────────────────
 
-  const readTag = useCallback(async (): Promise<string | null> => {
-    if (!portRef.current) {
-      setError("Not connected to RFID reader")
-      return null
-    }
+	const sendCommand = useCallback(async (payload: object) => {
+		const writer = writerRef.current;
+		if (!writer) throw new Error("Not connected");
 
-    setStatus("reading")
-    setError(null)
+		const encoder = new TextEncoder();
+		const line = JSON.stringify(payload) + "\n";
+		await writer.write(encoder.encode(line));
+	}, []);
 
-    // Poll every 600ms for up to 15 seconds
-    const maxAttempts = 25
-    
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        await sendCommand({ cmd: "READ" })
-        const response = await readLineFromSerial()
+	// ── Read tag (polls until card found or timeout) ──────────
 
-        if (!response) continue
+	const readTag = useCallback(async (): Promise<string | null> => {
+		if (!portRef.current) {
+			setError("Not connected to RFID reader");
+			return null;
+		}
 
-        if (response.status === "OK" && response.data) {
-          setStatus("connected")
-          return response.data  // 64 char hex hash
-        }
+		setStatus("reading");
+		setError(null);
 
-        if (response.status === "ERROR") {
-          setError(response.msg ?? "Read error")
-          setStatus("error")
-          return null
-        }
+		// Poll every 600ms for up to 15 seconds
+		const maxAttempts = 25;
 
-        // WAITING — no card yet, wait and retry
-        await delay(600)
+		for (let i = 0; i < maxAttempts; i++) {
+			try {
+				await sendCommand({ cmd: "READ" });
+				const response = await readLineFromSerial();
 
-      } catch (err: any) {
-        setError(err.message ?? "Read failed")
-        setStatus("error")
-        return null
-      }
-    }
+				if (!response) continue;
 
-    // Timed out
-    setError("No card detected. Please tap your card.")
-    setStatus("error")
-    return null
-  }, [sendCommand, readLineFromSerial])
+				if (response.status === "OK" && response.data) {
+					setStatus("connected");
+					return response.data; // 64 char hex hash
+				}
 
-  // ── Write tag ─────────────────────────────────────────────
+				if (response.status === "ERROR") {
+					setError(response.msg ?? "Read error");
+					setStatus("error");
+					return null;
+				}
 
-  const writeTag = useCallback(async (hexHash: string): Promise<boolean> => {
-    if (!portRef.current) {
-      setError("Not connected to RFID reader")
-      return false
-    }
+				// WAITING — no card yet, wait and retry
+				await delay(600);
+			} catch (err: any) {
+				setError(err.message ?? "Read failed");
+				setStatus("error");
+				return null;
+			}
+		}
 
-    if (hexHash.length !== 64) {
-      setError("Hash must be 64 hex characters")
-      return false
-    }
+		// Timed out
+		setError("No card detected. Please tap your card.");
+		setStatus("error");
+		return null;
+	}, [sendCommand, readLineFromSerial]);
 
-    setStatus("writing")
-    setError(null)
+	// ── Write tag ─────────────────────────────────────────────
 
-    try {
-      await sendCommand({ cmd: "WRITE", data: hexHash })
-      const response = await readLineFromSerial()
+	const writeTag = useCallback(
+		async (hexHash: string): Promise<boolean> => {
+			if (!portRef.current) {
+				setError("Not connected to RFID reader");
+				return false;
+			}
 
-      if (!response) {
-        setError("No response from device")
-        setStatus("error")
-        return false
-      }
+			if (hexHash.length !== 64) {
+				setError("Hash must be 64 hex characters");
+				return false;
+			}
 
-      if (response.status === "OK") {
-        setStatus("connected")
-        return true
-      }
+			setStatus("writing");
+			setError(null);
 
-      setError(response.msg ?? "Write failed")
-      setStatus("error")
-      return false
+			try {
+				await sendCommand({ cmd: "WRITE", data: hexHash });
+				const response = await readLineFromSerial();
 
-    } catch (err: any) {
-      setError(err.message ?? "Write failed")
-      setStatus("error")
-      return false
-    }
-  }, [sendCommand, readLineFromSerial])
+				if (!response) {
+					setError("No response from device");
+					setStatus("error");
+					return false;
+				}
 
-  // ── Return ────────────────────────────────────────────────
+				if (response.status === "OK") {
+					setStatus("connected");
+					return true;
+				}
 
-  return {
-    status,
-    error,
-    connect,
-    disconnect,
-    readTag,
-    writeTag,
-    isConnected: status !== "disconnected" && status !== "error",
-  }
+				setError(response.msg ?? "Write failed");
+				setStatus("error");
+				return false;
+			} catch (err: any) {
+				setError(err.message ?? "Write failed");
+				setStatus("error");
+				return false;
+			}
+		},
+		[sendCommand, readLineFromSerial],
+	);
+
+	// ── Return ────────────────────────────────────────────────
+
+	return {
+		status,
+		error,
+		connect,
+		disconnect,
+		readTag,
+		writeTag,
+		isConnected: status !== "disconnected" && status !== "error",
+	};
 }
 
 // ── Util ──────────────────────────────────────────────────────
 
 function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }
