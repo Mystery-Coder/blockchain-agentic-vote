@@ -40,11 +40,21 @@ export function useRFID(): UseRFIDReturn {
 
 	const disconnect = useCallback(async () => {
 		try {
-			await readerRef.current?.cancel();
-			readerRef.current?.releaseLock();
-			await writerRef.current?.close();
-			writerRef.current?.releaseLock();
-			await portRef.current?.close();
+			const reader = readerRef.current;
+			const writer = writerRef.current;
+			try {
+				void reader?.cancel();
+			} catch {}
+			try {
+				reader?.releaseLock();
+			} catch {}
+			try {
+				void writer?.abort();
+			} catch {}
+			try {
+				writer?.releaseLock();
+			} catch {}
+			await withTimeout(portRef.current?.close(), 500);
 		} catch (_) {}
 		portRef.current = null;
 		readerRef.current = null;
@@ -57,33 +67,45 @@ export function useRFID(): UseRFIDReturn {
 
 	const readLineFromSerial =
 		useCallback(async (): Promise<RFIDResponse | null> => {
-			const reader = readerRef.current;
-			if (!reader) return null;
+			const port = portRef.current;
+			if (!port?.readable) return null;
+			const reader = port.readable.getReader();
+			readerRef.current = reader;
 
 			const decoder = new TextDecoder();
 
-			// Keep reading chunks until we have a complete line
-			while (true) {
-				const { value, done } = await reader.read();
-				if (done) return null;
+			try {
+				// Keep reading chunks until we have a complete line
+				while (true) {
+					const { value, done } = await reader.read();
+					if (done) return null;
 
-				bufferRef.current += decoder.decode(value, { stream: true });
+					bufferRef.current += decoder.decode(value, {
+						stream: true,
+					});
+					const newlineIndex = bufferRef.current.indexOf("\n");
+					if (newlineIndex !== -1) {
+						const line = bufferRef.current
+							.slice(0, newlineIndex)
+							.trim();
+						bufferRef.current = bufferRef.current.slice(
+							newlineIndex + 1,
+						);
 
-				const newlineIndex = bufferRef.current.indexOf("\n");
-				if (newlineIndex !== -1) {
-					const line = bufferRef.current
-						.slice(0, newlineIndex)
-						.trim();
-					bufferRef.current = bufferRef.current.slice(
-						newlineIndex + 1,
-					);
-
-					try {
-						return JSON.parse(line) as RFIDResponse;
-					} catch {
-						// Malformed line — skip and keep reading
-						continue;
+						try {
+							return JSON.parse(line) as RFIDResponse;
+						} catch {
+							// Malformed line — skip and keep reading
+							continue;
+						}
 					}
+				}
+			} finally {
+				try {
+					reader.releaseLock();
+				} catch {}
+				if (readerRef.current === reader) {
+					readerRef.current = null;
 				}
 			}
 		}, []);
@@ -104,24 +126,77 @@ export function useRFID(): UseRFIDReturn {
 				await disconnect();
 			}
 
-			// Ask user to pick the serial port (ESP32)
-			const port = await navigator.serial.requestPort();
-
-			if (port.readable && port.writable) {
-				// Port is already open; just attach to it.
-				portRef.current = port;
-				readerRef.current = port.readable.getReader();
-				writerRef.current = port.writable.getWriter();
+			const existingPorts = await navigator.serial.getPorts();
+			const existingOpen = existingPorts.find(
+				(p) => p.readable && p.writable,
+			);
+			if (
+				existingOpen &&
+				existingOpen.readable &&
+				existingOpen.writable
+			) {
+				if (
+					existingOpen.readable.locked ||
+					existingOpen.writable.locked
+				) {
+					setError(
+						"RFID reader is busy. Disconnect the other session and try again.",
+					);
+					setStatus("error");
+					return;
+				}
+				portRef.current = existingOpen;
 				setStatus("connected");
 				await readLineFromSerial();
 				return;
 			}
 
-			await port.open({ baudRate: 115200 });
+			// Ask user to pick the serial port (ESP32)
+			const port = await navigator.serial.requestPort();
+
+			if (port.readable && port.writable) {
+				if (port.readable.locked || port.writable.locked) {
+					// Another reader/writer is holding the lock. Try to reset.
+					try {
+						await port.close();
+					} catch {
+						setError(
+							"RFID reader is busy. Disconnect the other session and try again.",
+						);
+						setStatus("error");
+						return;
+					}
+				} else {
+					// Port is already open; just attach to it.
+					portRef.current = port;
+					setStatus("connected");
+					await readLineFromSerial();
+					return;
+				}
+			}
+
+			try {
+				await port.open({ baudRate: 115200 });
+			} catch (err: any) {
+				if (String(err?.message || err).includes("already open")) {
+					if (port.readable && port.writable) {
+						if (port.readable.locked || port.writable.locked) {
+							setError(
+								"RFID reader is busy. Disconnect the other session and try again.",
+							);
+							setStatus("error");
+							return;
+						}
+						portRef.current = port;
+						setStatus("connected");
+						await readLineFromSerial();
+						return;
+					}
+				}
+				throw err;
+			}
 
 			portRef.current = port;
-			readerRef.current = port.readable!.getReader();
-			writerRef.current = port.writable!.getWriter();
 
 			setStatus("connected");
 
@@ -142,12 +217,24 @@ export function useRFID(): UseRFIDReturn {
 	// ── Low-level: send a command to ESP32 ───────────────────
 
 	const sendCommand = useCallback(async (payload: object) => {
-		const writer = writerRef.current;
-		if (!writer) throw new Error("Not connected");
+		const port = portRef.current;
+		if (!port?.writable) throw new Error("Not connected");
 
-		const encoder = new TextEncoder();
-		const line = JSON.stringify(payload) + "\n";
-		await writer.write(encoder.encode(line));
+		const writer = port.writable.getWriter();
+		writerRef.current = writer;
+
+		try {
+			const encoder = new TextEncoder();
+			const line = JSON.stringify(payload) + "\n";
+			await writer.write(encoder.encode(line));
+		} finally {
+			try {
+				writer.releaseLock();
+			} catch {}
+			if (writerRef.current === writer) {
+				writerRef.current = null;
+			}
+		}
 	}, []);
 
 	// ── Read tag (polls until card found or timeout) ──────────
@@ -258,4 +345,9 @@ export function useRFID(): UseRFIDReturn {
 
 function delay(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withTimeout<T>(promise: Promise<T> | undefined, ms: number) {
+	if (!promise) return;
+	return Promise.race([promise, delay(ms).then(() => undefined)]);
 }
