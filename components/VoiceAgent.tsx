@@ -36,6 +36,7 @@ export function VoiceAgent({
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const prevMessagesLengthRef = useRef(0);
 	const initSent = useRef(false);
+	const didRedirectRef = useRef(false);
 	const router = useRouter();
 
 	const transport = useMemo(
@@ -69,8 +70,9 @@ export function VoiceAgent({
 		cancel: cancelSpeech,
 		isSpeaking,
 	} = useSpeechSynthesis({
-		lang: "en-IN",
+		lang: "en-US",
 		rate: pwdCategory === "cognitive" ? 0.8 : 0.9,
+		voiceName: "Microsoft Mark - English (United States)",
 		pitch: 1.0,
 	});
 
@@ -129,9 +131,21 @@ export function VoiceAgent({
 
 		if (lastMessage.role === "assistant" && text) {
 			speak(text);
+			if (!didRedirectRef.current) {
+				const voteSubmitted =
+					text.includes("securely submitted") ||
+					text.includes("Thank you for voting") ||
+					text.includes("already pending") ||
+					text.includes("already cast");
+				if (voteSubmitted) {
+					didRedirectRef.current = true;
+					onVoteSubmitted?.();
+					router.push("/");
+				}
+			}
 		}
 		prevMessagesLengthRef.current = messages.length;
-	}, [messages, voiceEnabled, speak]);
+	}, [messages, voiceEnabled, speak, onVoteSubmitted, router]);
 
 	useEffect(() => {
 		if (!voiceEnabled) return;
