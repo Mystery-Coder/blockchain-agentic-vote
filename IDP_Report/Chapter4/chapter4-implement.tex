@@ -1,0 +1,34 @@
+\chapter{Prototype Implementation and Validation}
+The software prototype brings together all architectural components described in the preceding chapters into a testable, end-to-end voting system. Completed modules span the voter \gls{ui}, agentic voice guidance, off-chain batching and shuffle logic, and the on-chain smart contract. This chapter describes each implemented module, the security and anonymity properties demonstrated, and the validation cases used to confirm correct behaviour. The current scope is confined to software on a local blockchain; hardware integration is identified as a future work item.
+ 
+\section{Implemented Modules}
+ 
+\subsection{Voter Interface and Agentic Flow}
+ 
+The standard voting \gls{ui} presents a candidate list, captures selection, and routes the submission through the off-chain batching endpoint. The agentic voice-guided flow reads candidates aloud using the Web Speech \gls{api}, prompts for confirmation at each step, and provides neutral responses to reduce selection errors and improve accessibility for voters requiring assistance. Both flows converge at the same batching pipeline, ensuring identical privacy properties regardless of interaction mode. Admin and results views read on-chain state directly, providing transparent access to election phase and aggregate tallies.
+ 
+\subsection{Off-Chain Batching and Shuffle Module}
+ 
+The off-chain service accepts (hashed identity, candidate \gls{id}) pairs from the \gls{ui} and appends them to an in-memory buffer. When the buffer reaches the configured threshold $\theta$, the service applies a Fisher-Yates shuffle to the candidate \gls{id} column and triggers the relayer. The relayer submits the identity array to \texttt{markIdentitiesUsed} and the shuffled candidate array to \texttt{recordVotes} in two separate transactions. The buffer is cleared after successful submission.
+ 
+\subsection{Smart Contract}
+ 
+The deployed Solidity contract enforces the full election lifecycle. Phase transitions between \texttt{Registration}, \texttt{Voting}, and \texttt{Closed} are owner-controlled and guard all write functions. Candidate validation rejects any \gls{id} outside the declared list. The spent-key register prevents double voting by reverting any batch that contains a previously used identity hash. Tallies are stored as a candidate-to-count mapping and exposed through a public read function.
+ 
+\section{Security and Anonymity Coverage}
+ 
+\begin{figure}[htb]
+\centering
+    % \includegraphics[scale=0.8]{Figures/security_coverage}
+    \caption{Security and anonymity coverage across system layers}
+    \label{fig:security_coverage}
+\end{figure}
+ 
+Figure~\ref{fig:security_coverage} maps each security property to the layer that enforces it. Identity is hashed at the point of capture and the raw credential is discarded immediately; it is never written to any persistent store. Unlinkability is achieved through the combination of batch accumulation, Fisher-Yates shuffle, and two-stage on-chain submission, ensuring no positional correspondence between identity and candidate arrays exists on-chain \cite{Alsadi2024}. Double-vote prevention is enforced deterministically by the contract's spent-key register. On-chain tallies and explicit phase states provide integrity and auditability. The relayer remains a trust boundary in the current phase: it is the sole actor with write access to the contract, and its correct behaviour is assumed rather than cryptographically enforced. Eliminating this assumption through threshold signing or a verifiable relay protocol is identified as future work.
+ 
+\section{Validation Status}
+ 
+Validation was conducted in a local blockchain environment using a development chain node. Test cases covered the following scenarios: repeated voting attempts using the same identity hash, submission of batches containing invalid candidate \glspl{id}, batch submission at and below the threshold, and election phase transition enforcement. In all cases the contract reverted disallowed operations and accepted valid batches correctly. Post-submission inspection of on-chain state confirmed that identity hashes and candidate counts were recorded without any positional or temporal link between them. Tallies were verified to be consistent with the submitted batch contents across multiple election runs. No hardware integration has been performed in this phase; the system operates entirely in software on a local chain.
+ 
+This chapter has demonstrated that the implemented prototype satisfies the core functional and security requirements defined in Chapter~3. All planned software modules are complete and validated, with identity unlinkability, double-vote prevention, and tally integrity confirmed through targeted test cases. The following chapter presents the conclusions of the project, discusses the limitations of the current prototype, and outlines directions for future work including hardware-backed identity verification and migration to a permissioned or public blockchain.
+ 

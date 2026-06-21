@@ -1,0 +1,220 @@
+\chapter{Code}
+\section{Smart Contract and Batch Processing}
+
+\subsection{AnonymousBallot Contract}
+The contract stores voter participation and vote tallies in separate mappings so that voter identity and candidate choice are never linked on-chain.
+
+\begin{tcblisting}{listing only,colback=gray!10!white,breakable,boxsep=0pt,top=1mm,bottom=1mm,left=1mm,right=1mm}
+SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+contract AnonymousBallot {
+    enum ElectionState { NotStarted, Active, Ended }
+
+    address public immutable admin;
+    address public immutable relayer;
+    ElectionState public electionState;
+
+    mapping(bytes32 => bool) public hasVoted;
+    mapping(uint256 => uint256) public voteCount;
+    uint256[] public candidateIds;
+    mapping(uint256 => bool) public isValidCandidate;
+    uint256 public totalVotes;
+
+    error OnlyAdmin();
+    error OnlyRelayer();
+    error ElectionNotActive();
+    error InvalidStateTransition();
+    error VoterAlreadyVoted(bytes32 voterHash);
+    error InvalidCandidate(uint256 candidateId);
+    error EmptyBatch();
+
+    modifier onlyRelayer() {
+        if (msg.sender != relayer) revert OnlyRelayer();
+        _;
+    }
+
+    modifier onlyDuringElection() {
+        if (electionState != ElectionState.Active) revert ElectionNotActive();
+        _;
+    }
+
+    constructor(address _relayer, uint256[] memory _candidateIds) {
+        admin = msg.sender;
+        relayer = _relayer;
+        electionState = ElectionState.NotStarted;
+
+        for (uint256 i = 0; i < _candidateIds.length; i++) {
+            candidateIds.push(_candidateIds[i]);
+            isValidCandidate[_candidateIds[i]] = true;
+        }
+    }
+
+    function advanceElectionState() external {
+        if (msg.sender != admin) revert OnlyAdmin();
+        if (electionState == ElectionState.NotStarted) {
+            electionState = ElectionState.Active;
+        } else if (electionState == ElectionState.Active) {
+            electionState = ElectionState.Ended;
+        } else {
+            revert InvalidStateTransition();
+        }
+    }
+
+    function markVoters(bytes32[] calldata voterHashes)
+        external
+        onlyRelayer
+        onlyDuringElection
+    {
+        if (voterHashes.length == 0) revert EmptyBatch();
+
+        for (uint256 i = 0; i < voterHashes.length; i++) {
+            if (hasVoted[voterHashes[i]]) revert VoterAlreadyVoted(voterHashes[i]);
+            hasVoted[voterHashes[i]] = true;
+        }
+    }
+
+    function recordVotes(uint256[] calldata _candidateIds)
+        external
+        onlyRelayer
+        onlyDuringElection
+    {
+        if (_candidateIds.length == 0) revert EmptyBatch();
+
+        for (uint256 i = 0; i < _candidateIds.length; i++) {
+            if (!isValidCandidate[_candidateIds[i]]) {
+                revert InvalidCandidate(_candidateIds[i]);
+            }
+            voteCount[_candidateIds[i]]++;
+        }
+
+        totalVotes += _candidateIds.length;
+    }
+}
+\end{tcblisting}
+
+\subsection{Batching Logic}
+Votes are collected off-chain, deduplicated, shuffled, and then submitted on-chain in two separate transactions.
+
+\begin{tcblisting}{listing only,colback=gray!10!white,breakable,boxsep=0pt,top=1mm,bottom=1mm,left=1mm,right=1mm}
+import { flushVotes } from "@/lib/redis";
+import { getWritableContract, normalizeBytes32 } from "@/lib/blockchain";
+import { secureShuffle } from "@/lib/shuffle";
+
+export async function processBatch(constituencyId: string) {
+    const votes = await flushVotes(constituencyId);
+
+    if (votes.length === 0) {
+        return { success: true, message: "No votes in buffer.", voterCount: 0 };
+    }
+
+    const seenHashes = new Set<string>();
+    const uniqueVotes = votes.filter((v) => {
+        const normalizedHash = normalizeBytes32(v.voterHash);
+        if (seenHashes.has(normalizedHash)) return false;
+        seenHashes.add(normalizedHash);
+        return true;
+    });
+
+    const voterHashes = uniqueVotes.map((v) => normalizeBytes32(v.voterHash));
+    const candidateIds = uniqueVotes.map((v) => v.candidateId);
+    const shuffledCandidateIds = secureShuffle(candidateIds);
+
+    const contract = getWritableContract();
+
+    const markTx = await contract.markVoters(voterHashes);
+    await markTx.wait();
+
+    const voteTx = await contract.recordVotes(shuffledCandidateIds);
+    await voteTx.wait();
+
+    return {
+        success: true,
+        message: `Batch of ${votes.length} votes processed and recorded on-chain.`,
+        voterCount: votes.length,
+    };
+}
+\end{tcblisting}
+
+\subsection{Secure Shuffle}
+This helper uses a cryptographically secure Fisher-Yates shuffle.
+
+\begin{tcblisting}{listing only,colback=gray!10!white,breakable,boxsep=0pt,top=1mm,bottom=1mm,left=1mm,right=1mm}
+import crypto from "crypto";
+
+export function secureShuffle<T>(array: T[]): T[] {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const randomBytes = crypto.randomBytes(4);
+        const randomIndex = randomBytes.readUInt32BE(0) % (i + 1);
+        [shuffled[i], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[i]];
+    }
+    return shuffled;
+}
+\end{tcblisting}
+
+\subsection{Vote Submission Flow}
+This snippet shows how a vote enters the off-chain anonymity pool, is checked against on-chain and buffer state, and triggers batch processing when the threshold is reached.
+
+\begin{tcblisting}{listing only,colback=gray!10!white,breakable,boxsep=0pt,top=1mm,bottom=1mm,left=1mm,right=1mm}
+import { auth } from "@/auth";
+import { hasVoterVotedOnChain } from "@/lib/blockchain";
+import { pushVote, hasVoterInBuffer } from "@/lib/redis";
+import { processBatch } from "@/actions/batch";
+import { z } from "zod";
+
+const submitVoteSchema = z.object({
+  candidateId: z.number().int().positive(),
+});
+
+export async function submitVote(candidateId: number) {
+  const session = await auth();
+  if (!session?.user?.voterHash) {
+    return { success: false, message: "Not authenticated. Please log in." };
+  }
+
+  const parsed = submitVoteSchema.safeParse({ candidateId });
+  if (!parsed.success) {
+    return { success: false, message: "Invalid candidate ID." };
+  }
+
+  const { voterHash, constituency } = session.user;
+
+  const alreadyVoted = await hasVoterVotedOnChain(voterHash);
+  if (alreadyVoted) {
+    return { success: false, message: "You have already cast your vote." };
+  }
+
+  const inBuffer = await hasVoterInBuffer(constituency, voterHash);
+  if (inBuffer) {
+    return {
+      success: false,
+      message: "Your vote is already pending in the anonymity pool. Please wait for batch processing.",
+    };
+  }
+
+  const bufferLength = await pushVote(constituency, {
+    voterHash,
+    candidateId: parsed.data.candidateId,
+    timestamp: Date.now(),
+  });
+
+  const threshold = parseInt(process.env.BATCH_THRESHOLD || "5", 10);
+  let batchTriggered = false;
+
+  if (bufferLength >= threshold) {
+    processBatch(constituency).catch((err) =>
+      console.error("Batch processing failed:", err)
+    );
+    batchTriggered = true;
+  }
+
+  return {
+    success: true,
+    message: batchTriggered
+      ? "Vote submitted! Batch is being processed for maximum anonymity."
+      : `Vote submitted to anonymity pool. Waiting for more votes (${bufferLength}/${threshold}) before batch processing.`,
+    batchTriggered,
+  };
+}
+\end{tcblisting}
