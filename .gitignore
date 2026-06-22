@@ -47,3 +47,38 @@ next-env.d.ts
 
 # Data
 data/deployment.json
+
+# LaTeX build artifacts (IDP Report)
+IDP_Report/*.aux
+IDP_Report/*.log
+IDP_Report/*.out
+IDP_Report/*.toc
+IDP_Report/*.lof
+IDP_Report/*.lot
+IDP_Report/*.bbl
+IDP_Report/*.blg
+IDP_Report/*.bcf
+IDP_Report/*.run.xml
+IDP_Report/*.brf
+IDP_Report/*.fls
+IDP_Report/*.fdb_latexmk
+IDP_Report/*.synctex.gz
+IDP_Report/*.gz
+IDP_Report/*.glo
+IDP_Report/*.gls
+IDP_Report/*.glg
+IDP_Report/*.glsdefs
+IDP_Report/*.ist
+IDP_Report/*.sym
+IDP_Report/*.sym1
+IDP_Report/*.bib
+IDP_Report/*.sym2
+IDP_Report/*.listing
+IDP_Report/*.idx
+IDP_Report/*.ilg
+IDP_Report/*.ind
+IDP_Report/*.lol
+IDP_Report/*.nlo
+IDP_Report/*.nls
+IDP_Report/*.thm
+IDP_Report/*.xdv
