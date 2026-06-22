@@ -1,0 +1,212 @@
+\documentclass{ieeeaccess}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{tabularx}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\history{Date of publication xxxx 00, 0000, date of current version xxxx 00, 0000.}
+\doi{10.1109/ACCESS.2017.DOI}
+
+\title{Blockchain Agentic Vote: A Privacy-Preserving Voting Prototype with Voice-Guided Ballots, Batched Submission, and On-Chain Auditability}
+
+\author{\uppercase{Srikar Rao H M} \authorrefmark{1}, \uppercase{Srinidhi H} \authorrefmark{1}, \uppercase{S Vighnajit} \authorrefmark{2}, \uppercase{Jayathi R} \authorrefmark{3}, and \uppercase{N. S. Narahari} \authorrefmark{4}}
+\address[1]{Department of Computer Science and Engineering, R V College of Engineering, Bengaluru, India}
+\address[2]{Department of Electronics and Instrumentation Engineering, R V College of Engineering, Bengaluru, India}
+\address[3]{Department of Aerospace Engineering, R V College of Engineering, Bengaluru, India}
+\address[4]{Department of Industrial Engineering \& Management, R V College of Engineering, Bengaluru, India (e-mail: srikarraoh.cs23@rvce.edu.in)}
+
+\markboth
+{Srikar Rao H M \headeretal: Blockchain Agentic Vote}
+{Srikar Rao H M \headeretal: Blockchain Agentic Vote}
+
+\corresp{Corresponding author: Srikar Rao H M (e-mail: srikarraoh.cs23@rvce.edu.in).}
+
+\begin{abstract}
+This paper presents \emph{Blockchain Agentic Vote}, a prototype electronic voting system that addresses the tension between auditability and ballot secrecy. The system combines three mechanisms. First, voter identity is hashed at the point of authentication and the raw credential is discarded. Second, cast ballots enter a constituency-specific anonymity buffer rather than the ledger directly. When a configurable threshold is reached, candidate identifiers are shuffled via a cryptographically seeded Fisher-Yates permutation and submitted in two separate transactions to a local EVM-compatible blockchain. The blockchain records aggregate tallies and a spent-voter set but never receives paired voter-to-choice data. Third, an LLM-powered voice assistant reads the ballot aloud, interprets natural-language candidate selection, and requires explicit spoken confirmation before releasing the vote. This makes the system accessible to voters who cannot comfortably use a graphical interface. Validation on a local development chain confirms that duplicate voting is rejected at both the buffer and contract levels, batch submission updates tallies correctly, and the final on-chain state remains auditable while the vote-to-voter mapping stays outside the ledger.
+\end{abstract}
+
+\begin{keywords}
+Accessibility, anonymity pool, blockchain voting, electronic voting, smart contract, voice assistant, privacy
+\end{keywords}
+
+\titlepgskip=-15pt
+\maketitle
+
+\section{Introduction}
+\label{sec:introduction}
+\PARstart{E}{lectronic} voting systems face a tension. An election must be transparent enough for independent auditing and recounts, yet private enough that no observer, including the system operator, can reconstruct who voted for whom. Centralized systems can protect privacy if operated correctly, but they create single points of failure and concentrate trust in the operator. Blockchain technology offers immutability and distributed auditability, but a naive on-chain deployment makes the problem worse: every ballot is permanently visible, timing and ordering reveal correlations, and voter-to-choice mappings are exposed on a public ledger.
+
+This paper addresses that tension through architectural separation rather than heavyweight cryptography. The core idea is that a blockchain should record \emph{that} a vote occurred and \emph{how many} votes each candidate received, but never \emph{who} voted \emph{for whom}. Our prototype, \emph{Blockchain Agentic Vote}, inserts an off-chain anonymity pool between the ballot interface and the ledger. Votes accumulate in a per-constituency buffer. When the buffer reaches a threshold, candidate identifiers are shuffled independently of voter identifiers, and the two arrays are submitted to the smart contract as separate transactions. The contract stores a mapping of used voter hashes and a tally of votes per candidate, but no on-chain record preserves the pairing between any voter and any candidate.
+
+The system also addresses accessibility. A significant fraction of the electorate faces barriers with standard graphical ballots due to visual impairment, limited literacy, or motor disabilities. Our prototype includes an agentic voice-guided voting mode powered by a large language model. The assistant reads the ballot aloud, interprets natural-language instructions for candidate selection, and enforces a strict confirmation gate before submission. The assistant is constrained to neutral navigation: it cannot persuade, invent candidates, or alter the ballot. The voter retains full decision autonomy.
+
+The evaluation focuses on functional correctness: duplicate prevention at both the buffer and contract levels, correct batch processing at threshold boundaries, and verifiable tally retrieval from on-chain state. The system is implemented as a Next.js application with server actions, a Solidity smart contract, and a local Hardhat blockchain.
+
+The remainder of this paper is organized as follows. Section~II reviews related work. Section~III states the system goals and threat model. Section~IV describes the architecture. Section~V details the implementation. Section~VI presents the evaluation. Section~VII discusses limitations and future work, and Section~VIII concludes.
+
+\section{Related Work}
+Blockchain-based voting has been studied extensively because distributed ledgers offer immutability, transparency, and verifiability. Prior work shows that auditability alone does not guarantee ballot secrecy. Alsadi \emph{et al.} examine end-to-end verifiable online voting and note that verification mechanisms must be paired with privacy-preserving techniques to prevent vote-selling and coercion \cite{Alsadi2024}. The present work adopts a similar emphasis on verifiability but implements privacy through buffering and shuffling rather than encryption-based approaches.
+
+Wang \emph{et al.} study differentially private crowdsourcing on public and private blockchains, showing that off-chain preprocessing can reduce the amount of sensitive data that reaches the ledger \cite{Wang2023}. Our batching and shuffling module follows this same design: the blockchain receives only the aggregate data needed for tallying, while per-vote details are discarded off-chain.
+
+Authentication is a boundary in any voting system. Hosseinzadeh \emph{et al.} present an enhanced authentication protocol for constrained RFID systems, relevant to the identity-handling layer of our prototype \cite{Hosseinzadeh2024}. Our system uses a hashed credential model that minimizes the exposure of raw identity data. Fardad \emph{et al.} survey the standardization landscape for blockchain and distributed ledger technology, providing context for deployment considerations \cite{Fardad2025}.
+
+The present work differs from these references in its architectural emphasis. Rather than relying on zero-knowledge proofs, mixnets, or homomorphic encryption, all of which carry computational or coordination overhead, we use a modular design where privacy emerges from the operational workflow: buffer, shuffle, submit. This makes the system easier to implement and test in a student project context while still providing meaningful privacy guarantees against common linkage and double-vote attacks.
+
+\section{System Goals and Threat Model}
+\subsection{Design Goals}
+The system is designed around four goals:
+\begin{enumerate}
+    \item \textbf{Anonymity:} The voter should authenticate without exposing raw identity in the voting record. No on-chain observer should be able to reconstruct which voter chose which candidate.
+    \item \textbf{Integrity:} The contract must reject duplicate voting at both the buffer level and the chain level. Each identity hash may produce exactly one counted vote.
+    \item \textbf{Auditability:} The final tally must be publicly verifiable against on-chain state. Any observer should be able to query the contract and confirm that the aggregate counts match the expected outcome.
+    \item \textbf{Accessibility:} The voter interface must support both standard graphical ballots and an assisted voice-guided flow, using the same backend privacy pipeline.
+\end{enumerate}
+
+\subsection{Threat Model}
+The threat model is intentionally practical. We assume the local blockchain node is available, the relayer can submit transactions, and the server is not malicious in ordinary operation. We do not defend against a fully compromised client device, hardware key extraction, or a colluding relayer with full insider access. The design shows how far privacy can be improved through clean architectural separation alone.
+
+The primary linkage attack we mitigate is an observer correlating a voter hash to a candidate choice within the same transaction stream. Our countermeasure is the two-stage batch submission with independent shuffling. The primary integrity attack we mitigate is duplicate voting, blocked at two levels: the in-memory buffer rejects repeated hashes before batching, and the contract's spent-key register rejects them on-chain.
+
+\section{Architecture}
+The architecture is divided into four layers: enrollment and authentication, ballot capture, batch anonymization, and blockchain tallying.
+
+\subsection{Enrollment and Authentication}
+The enrollment flow uses a multi-step identity setup. Voter credentials are verified through a simulated OTP flow, and a deterministic SHA-256 hash is computed from the identity data. The raw credential is discarded immediately after hashing. It is never stored, transmitted to the server, or written to any persistent medium. The session carries only the voter hash, voter name, and constituency. This ensures that the voting pipeline never handles raw identity data.
+
+\subsection{Ballot Capture}
+The standard ballot page renders all candidates for the voter's constituency. The voter sees candidate cards with name, party, symbol, and a short manifesto summary, makes a selection, sees a confirmation modal, and submits through a server action. The voice-guided ballot wraps the same constituency data in an agentic interface: the LLM-powered assistant reads candidates aloud, responds to natural-language intent, and steps through a staged vote-confirm-submit flow. The assistant is constrained by a strict system prompt to remain neutral throughout.
+
+\subsection{Batch Anonymization}
+The privacy mechanism centers on an in-memory vote buffer. A vote enters the buffer as a tuple of (voter hash, candidate identifier, timestamp). The hash is computed as:
+\begin{equation}
+h_i = \mathrm{SHA256}(\mathtt{identity}_i)
+\label{eq:hash}
+\end{equation}
+
+Duplicate hashes are rejected before the buffer accepts the vote. When the configured batch threshold $\theta$ is reached, the batch processor reads and clears the buffer, deduplicates the entries, and separates the voter hash array $H$ from the candidate identifier array $C$. The candidate array is then permuted using a cryptographically seeded Fisher-Yates shuffle:
+\begin{equation}
+\{C'_1, C'_2, \ldots, C'_n\} = \mathrm{Shuffle}(C_1, C_2, \ldots, C_n)
+\label{eq:shuffle}
+\end{equation}
+
+The two arrays are submitted to the smart contract as separate transactions. The contract receives $(h_1, h_2, \ldots, h_n)$ in one call and $(C'_1, C'_2, \ldots, C'_n)$ in another, with no preserved positional correspondence between the two. The permutation $\pi$ is never recorded.
+
+\subsection{Smart Contract}
+The Solidity contract implements a three-phase state machine: \texttt{Registration}, \texttt{Voting}, and \texttt{Closed}. Two write functions are callable only by the relayer during the Voting phase:
+\begin{itemize}
+    \item \texttt{markVoters(bytes32[] voterHashes)}: marks each hash as used; reverts on duplicate.
+    \item \texttt{recordVotes(uint256[] candidateIds)}: increments the tally for each candidate; reverts on invalid IDs.
+\end{itemize}
+A public \texttt{getResults()} function returns aggregate counts. The contract stores no per-voter ballot, no timestamp, and no sequence number that could support re-identification.
+
+\section{Implementation}
+The system is implemented as a Next.js application with server actions and API routes, a Solidity smart contract, and a local Hardhat blockchain node.
+
+\subsection{Vote Submission Flow}
+The server-side vote action follows a strict sequence:
+\begin{enumerate}
+    \item Validate that the session contains a voter hash.
+    \item Validate that the candidate ID is a positive integer.
+    \item Query the contract to check whether the hash has already voted on-chain.
+    \item Check the local buffer for the same hash to reject duplicate pending submissions.
+    \item Insert the vote into the buffer.
+    \item If the buffer length reaches $\theta$, trigger the batch processor asynchronously.
+\end{enumerate}
+
+This sequence prevents two forms of duplication. The on-chain check blocks voters who have already completed the batch cycle. The buffer check blocks accidental duplicate submissions from repeated clicks or repeated voice confirmations before the batch is flushed.
+
+\subsection{Batch Processor}
+The batch processor reads and clears the constituency buffer atomically, deduplicates the vote set, constructs the voter hash array and candidate array, applies the Fisher-Yates shuffle to the candidate list, and sends two separate transactions to the contract. A simple mutex serializes batch processing to prevent nonce conflicts and overlapping flushes.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=\columnwidth]{architecture.pdf}
+\xdef\xfigwd{\columnwidth}%
+\caption{System architecture: voter interacts through standard or voice-guided UI; votes buffer off-chain, are shuffled at threshold $\theta$, and submitted as two separate transactions to the smart contract}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Voice-Guided Agent}
+The voice interface uses a tool-using LLM assistant that can load the candidate list, read the ballot, stage a vote, and confirm submission. The system prompt enforces four constraints:
+\begin{enumerate}
+    \item The assistant must remain neutral and must not persuade the voter.
+    \item The assistant must not invent candidates or alter ballot content.
+    \item The assistant must accept only the exact confirmation word before submission.
+    \item The assistant must check on-chain voting status before staging or confirming.
+\end{enumerate}
+This keeps the model in an advisory role rather than a decision-making one while providing a meaningful accessibility improvement.
+
+\subsection{Admin and Results Views}
+The admin dashboard exposes recent transactions, total votes, candidate counts, and the contract address. The results page reads candidate IDs from the contract and queries vote counts individually, displaying the election state with auto-refresh. These views show that the contract state is trivially inspectable while still hiding per-voter details.
+
+\section{Evaluation}
+The prototype was validated on a local Hardhat blockchain. Six test scenarios were run: valid batch submission, duplicate hash rejection, invalid candidate ID rejection, buffer hold below threshold, phase transition enforcement, and results retrieval. All produced the expected behaviour. Tally consistency was confirmed by comparing on-chain counts with the known contents of each submitted batch across multiple election runs.
+
+Post-submission inspection of on-chain state confirmed that no positional or temporal correspondence exists between the identity hash array and the candidate ID array. The on-chain record consists solely of a set of used hashes and a candidate-to-count mapping. No per-vote entry, sequence number, or timestamp is written to the ledger.
+
+The accessibility flow was also validated. The voice assistant could load candidate lists, read them aloud, interpret natural-language selection, and enforce the confirmation gate before triggering the same server-side submission path used by the graphical interface.
+
+\section{Discussion}
+\subsection{Privacy Guarantees}
+The combination of identity hashing, off-chain buffering, independent shuffling, and two-stage submission removes the direct on-chain linkage between voter and choice. An observer inspecting the ledger sees a set of used voter hashes with no ordering information and a set of candidate tally increments whose order bears no relation to the voter hash order. This is not a formal cryptographic proof of anonymity, but it confirms that the architecture eliminates the naive forms of linkage that a straightforward on-chain ballot would expose.
+
+\subsection{Limitations}
+The prototype has several limitations that prevent it from being production-ready. The anonymity pool is in memory and is not durable across application restarts. The relayer is a single point of trust: a malicious or compromised relayer could manipulate the shuffle or submit invalid batches. The voice assistant depends on the LLM's prompt discipline. While the constraints are strict, model hallucination or prompt injection remain theoretical risks. The local blockchain deployment eliminates external validator trust but limits the system to a single administrative domain.
+
+\subsection{Future Work}
+Three directions are identified for future development. First, privacy hardening: a zero-knowledge proof of shuffle correctness would let any observer verify honest permutation without trusting the relayer. Formal verification of the smart contract and an independent security audit would strengthen integrity guarantees. Second, deployment readiness: hardened key management for the relayer and admin roles, persistent storage for the anonymity buffer, and load testing under realistic voter arrival rates are needed. Third, hardware integration: moving identity capture and hashing to an ESP32-based polling terminal with RFID card reading would extend the privacy boundary to the physical edge, reducing the software attack surface for credential handling.
+
+\section{Conclusion}
+This paper presented \emph{Blockchain Agentic Vote}, a voting prototype that reconciles the competing demands of privacy, auditability, and accessibility in electronic voting. The system uses three mechanisms: identity hashing to decouple credentials from the voting record, a batched shuffle pipeline to break on-chain linkage between voter and choice, and an LLM-powered voice assistant to make the ballot accessible without compromising the privacy model.
+
+Validation on a local blockchain confirms that the system prevents duplicate voting, processes batches correctly, and maintains an auditable on-chain tally while ensuring that no voter-to-choice mapping exists in the ledger. The voice-guided flow shares the same privacy pipeline as the standard interface, showing that accessibility and strong privacy are not mutually exclusive.
+
+The prototype is not production-ready, but it establishes a clear architectural path. By keeping privacy-sensitive operations off the blockchain and using the ledger only for immutable, auditable aggregate state, the system achieves meaningful privacy guarantees without exotic cryptography. The remaining work, including durable storage, relayer hardening, and hardware integration, is incremental rather than foundational. This suggests that the architecture can serve as a practical basis for further development.
+
+\begin{thebibliography}{00}
+
+\bibitem{Alsadi2024}
+M. Alsadi \emph{et al.}, ``Towards End-to-End Verifiable Online Voting: Adding Verifiability to Established Voting Systems,'' \emph{IEEE Transactions on Dependable and Secure Computing}, vol. 21, no. 4, pp. 3357--3374, 2024.
+
+\bibitem{Wang2023}
+M. Wang \emph{et al.}, ``Differentially Private Crowdsourcing With the Public and Private Blockchain,'' \emph{IEEE Internet of Things Journal}, vol. 10, no. 10, pp. 8918--8930, 2023.
+
+\bibitem{Hosseinzadeh2024}
+M. Hosseinzadeh \emph{et al.}, ``An Enhanced Authentication Protocol Suitable for Constrained RFID Systems,'' \emph{IEEE Access}, vol. 12, pp. 61610--61628, 2024.
+
+\bibitem{Fardad2025}
+M. Fardad \emph{et al.}, ``Standardization and Regulation of Blockchain and Distributed Ledger Technology: Landscape Overview and Gap Analysis,'' in \emph{Cyber Research Conference - Ireland 2025}, 2025.
+
+\end{thebibliography}
+
+\begin{IEEEbiography}[{\includegraphics[width=1in,height=1.25in,clip,keepaspectratio]{a1.png}}]{Srikar Rao H M}
+is currently pursuing a B.E. in Computer Science and Engineering at R V College of Engineering, Bengaluru, India. His research interests include blockchain technology, privacy-preserving systems, and full-stack application development. He led the architecture and implementation of the Blockchain Agentic Vote prototype, including the smart contract, off-chain batching pipeline, and voice-guided agent integration.
+\end{IEEEbiography}
+
+\begin{IEEEbiography}[{\includegraphics[width=1in,height=1.25in,clip,keepaspectratio]{a2.png}}]{Srinidhi H}
+is currently pursuing a B.E. in Computer Science and Engineering at R V College of Engineering, Bengaluru, India. His research interests include distributed systems, web security, and applied cryptography. He contributed to the authentication pipeline, server-side vote submission flow, and the RFID card enrollment workflow in the prototype.
+\end{IEEEbiography}
+
+\begin{IEEEbiography}[{\includegraphics[width=1in,height=1.25in,clip,keepaspectratio]{a3.png}}]{S Vighnajit}
+is currently pursuing a B.E. in Electronics and Instrumentation Engineering at R V College of Engineering, Bengaluru, India. His research interests include embedded systems, IoT security, and hardware-software co-design. He designed the hardware integration path for the ESP32-based polling terminal and contributed to the RFID-based voter identity capture module.
+\end{IEEEbiography}
+
+\begin{IEEEbiography}[{\includegraphics[width=1in,height=1.25in,clip,keepaspectratio]{a3.png}}]{Jayathi R}
+is currently pursuing a B.E. in Aerospace Engineering at R V College of Engineering, Bengaluru, India. Her research interests include autonomous systems, secure communication protocols, and safety-critical software. She contributed to the admin dashboard, results page, and end-to-end testing of the voting workflow on the local blockchain.
+\end{IEEEbiography}
+
+\begin{IEEEbiography}[{\includegraphics[width=1in,height=1.25in,clip,keepaspectratio]{a3.png}}]{N. S. Narahari}
+received the Ph.D. degree from the Indian Institute of Science, Bengaluru, India. He is a Visiting Professor in the Department of Industrial Engineering \& Management at R V College of Engineering, Bengaluru, India. His research interests include blockchain technology, supply chain optimization, and systems engineering. He served as the project guide for the Blockchain Agentic Vote prototype.
+\end{IEEEbiography}
+
+\EOD
+
+\end{document}

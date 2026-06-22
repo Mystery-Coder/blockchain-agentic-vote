@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "humanizer": {
+      "source": "blader/humanizer",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "3545d1938bc805119fd31618cb1bc617081b3b0eb4f600e306a7c011438fd73b"
+    },
+    "research-paper-writing": {
+      "source": "Master-cai/Research-Paper-Writing-Skills",
+      "sourceType": "github",
+      "skillPath": "research-paper-writing/SKILL.md",
+      "computedHash": "5aae602b553f08a143efe47dc1a8bc679a92ed2d1bb6cc96277b70efb8cce72e"
+    }
+  }
+}
