@@ -5,6 +5,7 @@
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{tabularx}
+\usepackage{url}
 
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
@@ -17,10 +18,10 @@
 \title{Blockchain Agentic Vote: A Privacy-Preserving Voting Prototype with Voice-Guided Ballots, Batched Submission, and On-Chain Auditability}
 
 \author{\uppercase{Srikar Rao H M} \authorrefmark{1}, \uppercase{Srinidhi H} \authorrefmark{1}, \uppercase{S Vighnajit} \authorrefmark{2}, \uppercase{Jayathi R} \authorrefmark{3}, and \uppercase{N. S. Narahari} \authorrefmark{4}}
-\address[1]{Department of Computer Science and Engineering, R V College of Engineering, Bengaluru, India}
-\address[2]{Department of Electronics and Instrumentation Engineering, R V College of Engineering, Bengaluru, India}
-\address[3]{Department of Aerospace Engineering, R V College of Engineering, Bengaluru, India}
-\address[4]{Department of Industrial Engineering \& Management, R V College of Engineering, Bengaluru, India (e-mail: srikarraoh.cs23@rvce.edu.in)}
+\address[1]{Department of Computer Science and Engineering, R V College of Engineering, Bengaluru, India (e-mail: srinidhih.cs23@rvce.edu.in)}
+\address[2]{Department of Electronics and Instrumentation Engineering, R V College of Engineering, Bengaluru, India (e-mail: svighnajit.ei22@rvce.edu.in)}
+\address[3]{Department of Aerospace Engineering, R V College of Engineering, Bengaluru, India (e-mail: jayathir.ae23@rvce.edu.in)}
+\address[4]{Department of Industrial Engineering \& Management, R V College of Engineering, Bengaluru, India (e-mail: naraharins@rvce.edu.in)}
 
 \markboth
 {Srikar Rao H M \headeretal: Blockchain Agentic Vote}
@@ -52,13 +53,15 @@ The evaluation focuses on functional correctness: duplicate prevention at both t
 The remainder of this paper is organized as follows. Section~II reviews related work. Section~III states the system goals and threat model. Section~IV describes the architecture. Section~V details the implementation. Section~VI presents the evaluation. Section~VII discusses limitations and future work, and Section~VIII concludes.
 
 \section{Related Work}
-Blockchain-based voting has been studied extensively because distributed ledgers offer immutability, transparency, and verifiability. Prior work shows that auditability alone does not guarantee ballot secrecy. Alsadi \emph{et al.} examine end-to-end verifiable online voting and note that verification mechanisms must be paired with privacy-preserving techniques to prevent vote-selling and coercion \cite{Alsadi2024}. The present work adopts a similar emphasis on verifiability but implements privacy through buffering and shuffling rather than encryption-based approaches.
+Blockchain-based voting has been studied extensively because distributed ledgers offer immutability, transparency, and verifiability. Cryptographic foundations for privacy-preserving voting trace back to Chaum's blind signature scheme, which allows a message to be signed without revealing its content \cite{Chaum1982}. Nakamoto's original Bitcoin protocol demonstrated that a peer-to-peer network can maintain a consistent public ledger without a central authority \cite{Nakamoto2008}. McCorry \emph{et al.} implemented the first decentralised self-tallying internet voting protocol as an Ethereum smart contract, achieving maximum voter privacy without a trusted authority \cite{McCorry2017}. Bistarelli \emph{et al.} proposed an end-to-end voting system using the Bitcoin blockchain, showing that digital asset coins can directly represent votes \cite{Bistarelli2017}. Hardwick \emph{et al.} presented an e-voting protocol that balances decentralisation with voter privacy on a public blockchain \cite{Hardwick2018}. These early works confirm that blockchain technology can support verifiable elections, but they also expose the tension between a transparent public ledger and the need for ballot secrecy.
 
-Wang \emph{et al.} study differentially private crowdsourcing on public and private blockchains, showing that off-chain preprocessing can reduce the amount of sensitive data that reaches the ledger \cite{Wang2023}. Our batching and shuffling module follows this same design: the blockchain receives only the aggregate data needed for tallying, while per-vote details are discarded off-chain.
+Several recent systems address this tension through cryptographic techniques. Liu \emph{et al.} proposed DBE-voting, which uses a dual encryption approach for privacy-preserving and auditable voting on a permissioned blockchain \cite{Liu2023}. Nguyen and Thai introduced zVote, a platform that combines zero-knowledge proofs with threshold Paillier encryption to protect voter privacy on a public blockchain \cite{Nguyen2022}. Emami \emph{et al.} designed a scalable system that offloads vote computation off-chain and uses non-interactive zero-knowledge proofs for correctness verification, keeping on-chain storage constant regardless of voter count \cite{Emami2023}. Mukherjee \emph{et al.} proposed a blockchain-based e-voting system that uses zero-knowledge proofs and smart contracts to preserve voter anonymity while maintaining auditability \cite{Mukherjee2023}. Zhao and Chan designed protocols that let voters privately fund candidates using Bitcoin deposits, with cryptographic guarantees against double voting \cite{Zhao2016}. Kosťál \emph{et al.} showed that privacy and transparency can coexist on a public blockchain through careful protocol design that separates identity verification from vote casting \cite{Kostal2019}. Sangraula and Adhikari applied zero-knowledge Merkle membership proofs with nullifiers to ensure that only eligible voters can vote and that no one can vote twice \cite{Sangraula2025}. These approaches provide strong privacy guarantees but introduce significant computational overhead, protocol complexity, or gas costs that make them difficult to deploy in resource-constrained environments.
 
-Authentication is a boundary in any voting system. Hosseinzadeh \emph{et al.} present an enhanced authentication protocol for constrained RFID systems, relevant to the identity-handling layer of our prototype \cite{Hosseinzadeh2024}. Our system uses a hashed credential model that minimizes the exposure of raw identity data. Fardad \emph{et al.} survey the standardization landscape for blockchain and distributed ledger technology, providing context for deployment considerations \cite{Fardad2025}.
+Alsadi \emph{et al.} examine end-to-end verifiable online voting and note that verification mechanisms must be paired with privacy-preserving techniques to prevent vote-selling and coercion \cite{Alsadi2024}. Wang \emph{et al.} study differentially private crowdsourcing on public and private blockchains, showing that off-chain preprocessing can reduce the amount of sensitive data that reaches the ledger \cite{Wang2023}. Our batching and shuffling module follows this same design philosophy: the blockchain receives only the aggregate data needed for tallying, while per-vote details are discarded off-chain. Authentication remains a boundary concern. Hosseinzadeh \emph{et al.} present an enhanced authentication protocol for constrained RFID systems, relevant to the identity-handling layer of our prototype \cite{Hosseinzadeh2024}. Fardad \emph{et al.} survey the standardization landscape for blockchain and distributed ledger technology, providing context for deployment considerations \cite{Fardad2025}.
 
-The present work differs from these references in its architectural emphasis. Rather than relying on zero-knowledge proofs, mixnets, or homomorphic encryption, all of which carry computational or coordination overhead, we use a modular design where privacy emerges from the operational workflow: buffer, shuffle, submit. This makes the system easier to implement and test in a student project context while still providing meaningful privacy guarantees against common linkage and double-vote attacks.
+Jafar \emph{et al.} provide a comprehensive survey of blockchain-based e-voting systems and identify privacy protection and transaction speed as the two most frequently cited challenges in the literature \cite{Jafar2021}. The present work takes a different approach from the cryptographic-heavy systems surveyed above. Rather than relying on zero-knowledge proofs, mixnets, or homomorphic encryption, all of which carry computational or coordination overhead, we use a modular design where privacy emerges from the operational workflow: buffer, shuffle, submit. This makes the system easier to implement and test in a student project context while still providing meaningful privacy guarantees against common linkage and double-vote attacks.
+
+Voice-guided voting interfaces have received less attention in the blockchain voting literature. Zhu \emph{et al.} deployed an LLM-based voting advice application chatbot to 331 users before the 2024 European Parliament election, finding that participants valued the conversational interface for its simple language and flexible interaction \cite{Zhu2025}. Antony \emph{et al.} proposed an AI-powered voting system that uses voice-guided interactions to help visually impaired voters cast ballots independently \cite{Antony2025}. Our prototype builds on these directions by integrating an LLM-powered voice assistant directly into the voting pipeline, using the same backend privacy mechanisms as the graphical interface.
 
 \section{System Goals and Threat Model}
 \subsection{Design Goals}
@@ -91,7 +94,7 @@ h_i = \mathrm{SHA256}(\mathtt{identity}_i)
 \label{eq:hash}
 \end{equation}
 
-Duplicate hashes are rejected before the buffer accepts the vote. When the configured batch threshold $\theta$ is reached, the batch processor reads and clears the buffer, deduplicates the entries, and separates the voter hash array $H$ from the candidate identifier array $C$. The candidate array is then permuted using a cryptographically seeded Fisher-Yates shuffle:
+Duplicate hashes are rejected before the buffer accepts the vote. When the configured batch threshold $\theta$ is reached, the batch processor reads and clears the buffer, deduplicates the entries, and separates the voter hash array $H$ from the candidate identifier array $C$. The candidate array is then permuted using a cryptographically seeded Fisher-Yates shuffle, which produces an unbiased permutation in linear time:
 \begin{equation}
 \{C'_1, C'_2, \ldots, C'_n\} = \mathrm{Shuffle}(C_1, C_2, \ldots, C_n)
 \label{eq:shuffle}
@@ -162,7 +165,7 @@ The combination of identity hashing, off-chain buffering, independent shuffling,
 The prototype has several limitations that prevent it from being production-ready. The anonymity pool is in memory and is not durable across application restarts. The relayer is a single point of trust: a malicious or compromised relayer could manipulate the shuffle or submit invalid batches. The voice assistant depends on the LLM's prompt discipline. While the constraints are strict, model hallucination or prompt injection remain theoretical risks. The local blockchain deployment eliminates external validator trust but limits the system to a single administrative domain.
 
 \subsection{Future Work}
-Three directions are identified for future development. First, privacy hardening: a zero-knowledge proof of shuffle correctness would let any observer verify honest permutation without trusting the relayer. Formal verification of the smart contract and an independent security audit would strengthen integrity guarantees. Second, deployment readiness: hardened key management for the relayer and admin roles, persistent storage for the anonymity buffer, and load testing under realistic voter arrival rates are needed. Third, hardware integration: moving identity capture and hashing to an ESP32-based polling terminal with RFID card reading would extend the privacy boundary to the physical edge, reducing the software attack surface for credential handling.
+Three directions are identified for future development. First, privacy hardening: a zero-knowledge proof of shuffle correctness, building on the techniques surveyed by Goldwasser \emph{et al.} \cite{Goldwasser1989} and applied in recent e-voting systems \cite{Emami2023, Sangraula2025}, would let any observer verify honest permutation without trusting the relayer. Formal verification of the smart contract and an independent security audit would strengthen integrity guarantees. Second, deployment readiness: hardened key management for the relayer and admin roles, persistent storage for the anonymity buffer, and load testing under realistic voter arrival rates are needed. Third, hardware integration: moving identity capture and hashing to an ESP32-based polling terminal with RFID card reading would extend the privacy boundary to the physical edge, reducing the software attack surface for credential handling.
 
 \section{Conclusion}
 This paper presented \emph{Blockchain Agentic Vote}, a voting prototype that reconciles the competing demands of privacy, auditability, and accessibility in electronic voting. The system uses three mechanisms: identity hashing to decouple credentials from the voting record, a batched shuffle pipeline to break on-chain linkage between voter and choice, and an LLM-powered voice assistant to make the ballot accessible without compromising the privacy model.
@@ -173,17 +176,65 @@ The prototype is not production-ready, but it establishes a clear architectural 
 
 \begin{thebibliography}{00}
 
+\bibitem{Nakamoto2008}
+S. Nakamoto, ``Bitcoin: A Peer-to-Peer Electronic Cash System,'' 2008. [Online]. Available: \url{https://bitcoin.org/bitcoin.pdf}
+
+\bibitem{McCorry2017}
+P. McCorry, S. F. Shahandashti, and F. Hao, ``A Smart Contract for Boardroom Voting with Maximum Voter Privacy,'' in \emph{Proc. FC 2017}, LNCS 10322, pp. 357--375, 2017.
+
+\bibitem{Bistarelli2017}
+S. Bistarelli, M. Mantilacci, P. Santancini, and F. Santini, ``An End-to-end Voting-system Based on Bitcoin,'' in \emph{Proc. ACM SAC 2017}, pp. 1836--1841, 2017.
+
+\bibitem{Hardwick2018}
+F. S. Hardwick, R. N. Akram, and K. Markantonakis, ``E-Voting with Blockchain: An E-Voting Protocol with Decentralisation and Voter Privacy,'' \emph{arXiv:1805.10258}, 2018.
+
+\bibitem{Liu2023}
+Z. Liu \emph{et al.}, ``DBE-voting: A Privacy-Preserving and Auditable Blockchain-Based E-Voting System,'' in \emph{Proc. IEEE ICC 2023}, pp. 1--6, 2023.
+
+\bibitem{Nguyen2022}
+T. Nguyen and M. T. Thai, ``zVote: A Blockchain-based Privacy-preserving Platform for Remote E-voting,'' in \emph{Proc. IEEE ICC 2022}, pp. 4745--4750, 2022.
+
+\bibitem{Emami2023}
+A. Emami \emph{et al.}, ``A Scalable Decentralized Privacy-Preserving E-Voting System Based on Zero-Knowledge Off-Chain Computations,'' \emph{J. Inf. Secur. Appl.}, vol. 79, art. 103645, 2023.
+
+\bibitem{Mukherjee2023}
+A. Mukherjee, S. Majumdar, A. K. Kolya, and S. Nandi, ``A Privacy-Preserving Blockchain-based E-voting System,'' \emph{arXiv:2307.08412}, 2023.
+
+\bibitem{Zhao2016}
+Z. Zhao and T.-H. H. Chan, ``How to Vote Privately Using Bitcoin,'' in \emph{Proc. FC 2015}, LNCS 8976, pp. 82--96, 2016.
+
+\bibitem{Kostal2019}
+K. Ko{\v s}t{\'a}l, R. Bencel, M. Ries, and I. Kotuliak, ``Blockchain E-Voting Done Right: Privacy and Transparency with Public Blockchain,'' in \emph{Proc. IEEE ICSESS 2019}, pp. 592--595, 2019.
+
+\bibitem{Sangraula2025}
+P. Sangraula and N. B. Adhikari, ``Zero Knowledge Proof on Top of Blockchain for Anonymous and Verifiable E-Voting System,'' \emph{J. Inst. Eng. India Ser. B}, 2025.
+
 \bibitem{Alsadi2024}
-M. Alsadi \emph{et al.}, ``Towards End-to-End Verifiable Online Voting: Adding Verifiability to Established Voting Systems,'' \emph{IEEE Transactions on Dependable and Secure Computing}, vol. 21, no. 4, pp. 3357--3374, 2024.
+M. Alsadi \emph{et al.}, ``Towards End-to-End Verifiable Online Voting: Adding Verifiability to Established Voting Systems,'' \emph{IEEE Trans. Dependable Secure Comput.}, vol. 21, no. 4, pp. 3357--3374, 2024.
 
 \bibitem{Wang2023}
-M. Wang \emph{et al.}, ``Differentially Private Crowdsourcing With the Public and Private Blockchain,'' \emph{IEEE Internet of Things Journal}, vol. 10, no. 10, pp. 8918--8930, 2023.
+M. Wang \emph{et al.}, ``Differentially Private Crowdsourcing With the Public and Private Blockchain,'' \emph{IEEE Internet Things J.}, vol. 10, no. 10, pp. 8918--8930, 2023.
 
 \bibitem{Hosseinzadeh2024}
 M. Hosseinzadeh \emph{et al.}, ``An Enhanced Authentication Protocol Suitable for Constrained RFID Systems,'' \emph{IEEE Access}, vol. 12, pp. 61610--61628, 2024.
 
 \bibitem{Fardad2025}
-M. Fardad \emph{et al.}, ``Standardization and Regulation of Blockchain and Distributed Ledger Technology: Landscape Overview and Gap Analysis,'' in \emph{Cyber Research Conference - Ireland 2025}, 2025.
+M. Fardad \emph{et al.}, ``Standardization and Regulation of Blockchain and Distributed Ledger Technology: Landscape Overview and Gap Analysis,'' in \emph{Proc. Cyber Research Conf. Ireland 2025}, 2025.
+
+\bibitem{Jafar2021}
+U. Jafar, M. J. A. Aziz, and Z. Shukur, ``Blockchain for Electronic Voting System -- Review and Open Research Challenges,'' \emph{Sensors}, vol. 21, no. 17, art. 5874, 2021.
+
+\bibitem{Zhu2025}
+J. Zhu \emph{et al.}, ``Learn, Explore and Reflect by Chatting: Understanding the Value of an LLM-Based Voting Advice Application Chatbot,'' \emph{arXiv:2505.09806}, 2025.
+
+\bibitem{Antony2025}
+A. Antony \emph{et al.}, ``AI-Powered Voting System Enhancing Accessibility for Visually Impaired Individuals in Elections,'' \emph{Int. J. Comput. Appl.}, vol. 186, no. 73, pp. 1--6, 2025.
+
+\bibitem{Goldwasser1989}
+S. Goldwasser, S. Micali, and C. Rackoff, ``The Knowledge Complexity of Interactive Proof Systems,'' \emph{SIAM J. Comput.}, vol. 18, no. 1, pp. 186--208, 1989.
+
+\bibitem{Chaum1982}
+D. Chaum, ``Blind Signatures for Untraceable Payments,'' in \emph{Advances in Cryptology}, pp. 199--203, Springer, 1982.
 
 \end{thebibliography}
 
